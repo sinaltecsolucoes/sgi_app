@@ -1,24 +1,36 @@
 // lib/main.dart
 import 'package:flutter/material.dart';
-import 'views/login_view.dart'; // Importa a nossa tela de Login
+import 'package:provider/provider.dart';
+import 'providers/auth_provider.dart';
+import 'screens/login_screen.dart';
+import 'screens/home_screen.dart'; // Futura tela principal
 
 void main() {
-  runApp(const SgiApp());
+  runApp(
+    ChangeNotifierProvider(
+      create: (context) => AuthProvider(),
+      child: const SgiApp(),
+    ),
+  );
 }
 
 class SgiApp extends StatelessWidget {
-  const SgiApp({Key? key}) : super(key: key);
+  const SgiApp({super.key});
 
   @override
   Widget build(BuildContext context) {
+    // Escuta o estado do AuthProvider para decidir qual tela mostrar
+    final authProvider = Provider.of<AuthProvider>(context);
+
     return MaterialApp(
-      title: 'SGI App - Produção',
-      debugShowCheckedModeBanner: false, // Remove a faixa 'Debug'
+      title: 'SGI App Mobile',
+      debugShowCheckedModeBanner: false,
       theme: ThemeData(
-        primarySwatch: Colors.blueGrey, // Uma cor neutra para o tema
+        primarySwatch: Colors.blueGrey,
         visualDensity: VisualDensity.adaptivePlatformDensity,
       ),
-      home: const LoginView(), // Define a primeira tela
+      // Roteamento baseado no estado de login
+      home: authProvider.isLoggedIn ? const HomeScreen() : const LoginScreen(),
     );
   }
 }
