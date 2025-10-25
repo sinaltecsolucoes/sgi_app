@@ -1,30 +1,34 @@
-// This is a basic Flutter widget test.
-//
-// To perform an interaction with a widget in your test, use the WidgetTester
-// utility in the flutter_test package. For example, you can send tap and scroll
-// gestures. You can also use WidgetTester to find child widgets in the widget
-// tree, read text, and verify that the values of widget properties are correct.
-
-import 'package:flutter/material.dart';
+// test/widget_test.dart
+//import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-
+import 'package:provider/provider.dart';
 import 'package:sgi_app/main.dart';
+import 'package:sgi_app/providers/auth_provider.dart';
+import 'package:sgi_app/screens/login_screen.dart';
 
 void main() {
-  testWidgets('Counter increments smoke test', (WidgetTester tester) async {
-    // Build our app and trigger a frame.
-    await tester.pumpWidget(const MyApp());
+  testWidgets('SgiApp shows LoginScreen when not logged in', (
+    WidgetTester tester,
+  ) async {
+    // Cria um AuthProvider mockado com estado inicial de não logado
+    final authProvider = AuthProvider();
 
-    // Verify that our counter starts at 0.
-    expect(find.text('0'), findsOneWidget);
-    expect(find.text('1'), findsNothing);
+    // Constrói o aplicativo com o AuthProvider
+    await tester.pumpWidget(
+      ChangeNotifierProvider(
+        create: (_) => authProvider,
+        child: const SgiApp(),
+      ),
+    );
 
-    // Tap the '+' icon and trigger a frame.
-    await tester.tap(find.byIcon(Icons.add));
-    await tester.pump();
+    // Aguarda a renderização
+    await tester.pumpAndSettle();
 
-    // Verify that our counter has incremented.
-    expect(find.text('0'), findsNothing);
-    expect(find.text('1'), findsOneWidget);
+    // Verifica se a LoginScreen é exibida (baseado em algum elemento único da tela)
+    expect(find.byType(LoginScreen), findsOneWidget);
+    expect(
+      find.text('SGI App Mobile'),
+      findsOneWidget,
+    ); // Ajuste conforme o conteúdo real da LoginScreen
   });
 }

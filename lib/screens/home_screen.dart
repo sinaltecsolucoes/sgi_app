@@ -2,6 +2,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/auth_provider.dart';
+import 'montar_equipe_screen.dart'; //
 
 class HomeScreen extends StatelessWidget {
   const HomeScreen({super.key});
@@ -9,7 +10,7 @@ class HomeScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final authProvider = Provider.of<AuthProvider>(context);
-    final user = authProvider.user; // O tipo é UserModel?
+    final user = authProvider.user;
 
     // Acesso direto às propriedades do objeto user.tipo (user?.tipo)
     final isApontador = user?.tipo == 'apontador' || user?.tipo == 'admin';
@@ -48,7 +49,12 @@ class HomeScreen extends StatelessWidget {
                       'Montar Equipe',
                       Icons.group,
                       () {
-                        // TODO: Navegar para Montagem de Equipe
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => const MontarEquipeScreen(), 
+                          ),
+                        ); 
                       },
                     ),
                     const SizedBox(height: 15),
