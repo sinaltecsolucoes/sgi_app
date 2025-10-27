@@ -3,6 +3,8 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 import '../providers/auth_provider.dart';
 import 'config_service.dart'; // Importamos o serviço de configuração
+import '../models/acao_model.dart';
+import '../models/produto_model.dart';
 
 class ApiService {
   final AuthProvider auth;
@@ -90,40 +92,6 @@ class ApiService {
   }
 
   /// Busca os dados da equipe
-  /*  Future<Map<String, dynamic>> getEquipeDados() async {
-    if (auth.user == null) {
-      return {'success': false, 'message': 'Usuário não autenticado.'};
-    }
-
-    final url = await _buildUri('/equipe/dados');
-
-    try {
-      final response = await http.get(
-        url,
-        headers: {'Content-Type': 'application/json'},
-      );
-
-      final responseBody = jsonDecode(response.body);
-
-      if (response.statusCode == 200 && responseBody['success'] == true) {
-        return {'success': true, 'data': responseBody['data']};
-      } else {
-        return {
-          'success': false,
-          'message':
-              responseBody['message'] ?? 'Falha ao carregar dados da equipe.',
-        };
-      }
-    } catch (e) {
-      return {
-        'success': false,
-        'message': 'Erro de rede ao carregar dados da equipe: $e',
-      };
-    }
-  }
-*/
-
-  /// Busca os dados da equipe
   Future<Map<String, dynamic>> getEquipeDados() async {
     if (auth.user == null) {
       return {'success': false, 'message': 'Usuário não autenticado.'};
@@ -135,7 +103,7 @@ class ApiService {
     final url = await _buildUri('/equipe/dados');
 
     try {
-      // MUDANÇA: Usar http.post e enviar o ID do apontador
+      // Usa http.post e envia o ID do apontador
       final response = await http.post(
         url,
         headers: {'Content-Type': 'application/json'},
@@ -175,8 +143,6 @@ class ApiService {
     }
 
     final url = await _buildUri(_equipeSalvarPath);
-    /* final baseUrl = await _configService.getBaseUrl();
-    final url = Uri.parse(baseUrl + equipeSalvarUrl);*/
 
     try {
       final response = await http.post(
@@ -201,6 +167,113 @@ class ApiService {
       }
     } catch (e) {
       return {'success': false, 'message': 'Erro de rede ao salvar equipe: $e'};
+    }
+  }
+
+  /// Busca as opções necessárias para a tela de Lançamento Individual.
+  /// Membros da equipe, ações e produtos (com flag usaLote).
+  Future<Map<String, dynamic>> getLancamentoOpcoes() async {
+    if (auth.user == null) {
+      return {'success': false, 'message': 'Usuário não autenticado.'};
+    }
+
+    final apontadorId = auth.user!.id;
+    final url = await _buildUri('/lancamento/opcoes'); // Rota da API
+
+    try {
+      final response = await http.post(
+        url,
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({
+          'apontador_id': apontadorId,
+        }), // API espera o ID do apontador
+      );
+
+      final responseBody = jsonDecode(response.body);
+
+      if (response.statusCode == 200 && responseBody['success'] == true) {
+        // 1. Mapeia Ações
+        final List<AcaoModel> acoes = (responseBody['acoes'] as List)
+            .map((json) => AcaoModel.fromJson(json))
+            .toList();
+
+        // 2. Mapeia Produtos
+        final List<ProdutoModel> produtos = (responseBody['produtos'] as List)
+            .map((json) => ProdutoModel.fromJson(json))
+            .toList();
+
+        // 3. Retorna os dados prontos para a tela (incluindo membros e equipe_id)
+        return {
+          'success': true,
+          'equipe_id': responseBody['equipe_id'],
+          'membros': responseBody['membros'], // FuncionárioMembro
+          'acoes': acoes,
+          'produtos': produtos,
+        };
+      } else {
+        return {
+          'success': false,
+          'message':
+              responseBody['message'] ??
+              'Falha ao carregar opções de lançamento.',
+        };
+      }
+    } catch (e) {
+      return {
+        'success': false,
+        'message': 'Erro de rede ao carregar opções: $e',
+      };
+    }
+  }
+
+  /// Salva um lançamento de produção individual.
+  Future<Map<String, dynamic>> salvarLancamentoIndividual({
+    required int funcionarioId,
+    required int acaoId,
+    required int produtoId,
+    required String lote,
+    required double quantidadeKg,
+    required String horaInicio,
+    required String horaFim,
+  }) async {
+    if (auth.user == null) {
+      return {'success': false, 'message': 'Usuário não autenticado.'};
+    }
+
+    final url = await _buildUri('/lancamento/salvar'); // Rota da API
+
+    try {
+      final response = await http.post(
+        url,
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({
+          // Parâmetros que a API PHP espera
+          'apontador_id': auth.user!.id,
+          'funcionario_id': funcionarioId,
+          'acao_id': acaoId,
+          'tipo_produto_id': produtoId,
+          'lote_produto': lote,
+          'quantidade_kg': quantidadeKg,
+          'hora_inicio': horaInicio,
+          'hora_fim': horaFim,
+        }),
+      );
+
+      final responseBody = jsonDecode(response.body);
+
+      if (response.statusCode == 200 && responseBody['success'] == true) {
+        return {'success': true, 'message': responseBody['message']};
+      } else {
+        return {
+          'success': false,
+          'message': responseBody['message'] ?? 'Falha ao salvar lançamento.',
+        };
+      }
+    } catch (e) {
+      return {
+        'success': false,
+        'message': 'Erro de rede ao salvar lançamento: $e',
+      };
     }
   }
 }

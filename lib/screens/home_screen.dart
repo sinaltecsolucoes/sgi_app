@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/auth_provider.dart';
 import 'montar_equipe_screen.dart'; //
+import 'lancamento_individual_screen.dart';
+import 'lancamento_massa_screen.dart';
 
 class HomeScreen extends StatelessWidget {
   const HomeScreen({super.key});
@@ -52,9 +54,9 @@ class HomeScreen extends StatelessWidget {
                         Navigator.push(
                           context,
                           MaterialPageRoute(
-                            builder: (context) => const MontarEquipeScreen(), 
+                            builder: (context) => const MontarEquipeScreen(),
                           ),
-                        ); 
+                        );
                       },
                     ),
                     const SizedBox(height: 15),
@@ -65,7 +67,14 @@ class HomeScreen extends StatelessWidget {
                       'Lançamento Individual',
                       Icons.person,
                       () {
-                        // TODO: Navegar para Lançamento Individual
+                        // Navegar para Lançamento Individual
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) =>
+                                const LancamentoIndividualScreen(), //
+                          ),
+                        );
                       },
                     ),
                     const SizedBox(height: 15),
@@ -76,7 +85,14 @@ class HomeScreen extends StatelessWidget {
                       'Lançamento em Massa',
                       Icons.people_alt,
                       () {
-                        // TODO: Navegar para Lançamento em Massa
+                        // NOVO: Navegar para Lançamento em Massa
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) =>
+                                const LancamentoMassaScreen(), //
+                          ),
+                        );
                       },
                     ),
                   ],
