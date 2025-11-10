@@ -7,7 +7,7 @@ import '../services/api_service.dart';
 import '../models/acao_model.dart';
 import '../models/produto_model.dart';
 
-// NOVO Modelo para os membros da equipe, incluindo o controlador da quantidade
+// Modelo para os membros da equipe, incluindo o controlador da quantidade
 class MembroProducao {
   final int id;
   final String nome;
@@ -60,6 +60,8 @@ class _LancamentoMassaScreenState extends State<LancamentoMassaScreen> {
   }
 
   void _showSnackBar(String message, {required bool isError}) {
+    // 1. Garantir que o widget ainda está montado
+    if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(message),
@@ -137,6 +139,7 @@ class _LancamentoMassaScreenState extends State<LancamentoMassaScreen> {
         _produtoSelecionado == null ||
         _horaInicio == null ||
         _horaFim == null) {
+      // 2. Usar 'mounted' check antes de usar context (se necessário, mas aqui o showSnackBar já faz)
       _showSnackBar(
         'Preencha Ação, Produto e Horários no cabeçalho.',
         isError: true,
@@ -160,7 +163,7 @@ class _LancamentoMassaScreenState extends State<LancamentoMassaScreen> {
 
     // 4. Identificar Lançamentos Válidos e Validar Quantidade
     final List<Map<String, dynamic>> lancamentosValidos = [];
-    int totalLancamentosTentados = 0;
+    //int totalLancamentosTentados = 0;
 
     for (var membro in _membrosProducao) {
       final quantidadeKgText = membro.quantidadeController.text
@@ -170,7 +173,7 @@ class _LancamentoMassaScreenState extends State<LancamentoMassaScreen> {
 
       // Consideramos apenas lançamentos com quantidade válida > 0
       if (quantidadeKg != null && quantidadeKg > 0) {
-        totalLancamentosTentados++;
+        // totalLancamentosTentados++;
         lancamentosValidos.add({
           'funcionarioId': membro.id,
           'quantidadeKg': quantidadeKg,
@@ -222,13 +225,17 @@ class _LancamentoMassaScreenState extends State<LancamentoMassaScreen> {
       _isLoading = false;
     });
 
+    // 3. Checagem de 'mounted' antes de usar BuildContext para navegação
+    if (!mounted) return;
+
     if (sucessos > 0) {
       _showSnackBar(
         'Salvo $sucessos lançamentos. Falhas: $falhas.',
         isError: falhas > 0,
       );
+
       // Sucesso: Retorna para a tela principal
-      Navigator.of(context).pop();
+      Navigator.of(context).pop();// Citação de BuildContext síncrona
     } else {
       _showSnackBar(
         'Nenhum lançamento foi salvo. Verifique a conexão e as quantidades.',
@@ -392,7 +399,7 @@ class _LancamentoMassaScreenState extends State<LancamentoMassaScreen> {
                               ],
                             ),
                           );
-                        }).toList(),
+                        }),
                         const SizedBox(height: 40),
 
                         // Botão Salvar

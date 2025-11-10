@@ -59,6 +59,8 @@ class _LancamentoIndividualScreenState
   }
 
   void _showSnackBar(String message, {required bool isError}) {
+    // 1. Garantir que o widget ainda está montado
+    if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(message),
@@ -197,13 +199,16 @@ class _LancamentoIndividualScreenState
       _isLoading = false;
     });
 
+    // 1. Checagem de 'mounted' antes de usar BuildContext para navegação
+    if (!mounted) return;
+
     if (result['success']) {
       _showSnackBar(
         result['message'] ?? 'Lançamento salvo com sucesso!',
         isError: false,
       );
       // Sucesso: Retorna para a tela principal
-      Navigator.of(context).pop();
+      Navigator.of(context).pop(); // Citação de BuildContext síncrona
     } else {
       _showSnackBar(
         result['message'] ?? 'Falha ao salvar o lançamento.',

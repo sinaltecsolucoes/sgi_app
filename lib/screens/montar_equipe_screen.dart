@@ -58,6 +58,8 @@ class _MontarEquipeScreenState extends State<MontarEquipeScreen> {
   }
 
   void _showSnackBar(String message, {required bool isError}) {
+    // 1. Garantir que o widget ainda está montado
+    if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(message),
@@ -140,12 +142,15 @@ class _MontarEquipeScreenState extends State<MontarEquipeScreen> {
       _isLoading = false;
     });
 
+    // 1. Checagem de 'mounted' antes de usar BuildContext para navegação
+    if (!mounted) return;
+
     if (result['success']) {
       _showSnackBar(
         result['message'] ?? 'Equipe salva com sucesso!',
         isError: false,
       );
-      Navigator.of(context).pop();
+      Navigator.of(context).pop(); // Citação de BuildContext síncrona
     } else {
       _showSnackBar(
         result['message'] ?? 'Falha ao salvar equipe.',
@@ -191,7 +196,7 @@ class _MontarEquipeScreenState extends State<MontarEquipeScreen> {
                         },
                       ),
                     );
-                  }).toList(),
+                  }),
                   const SizedBox(height: 30),
                   ElevatedButton.icon(
                     onPressed: _salvarEquipe,
