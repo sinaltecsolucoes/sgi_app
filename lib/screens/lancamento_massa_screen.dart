@@ -200,15 +200,14 @@ class _LancamentoMassaScreenState extends State<LancamentoMassaScreen> {
     // Utilizamos Future.wait com um Future.forEach para processar sequencialmente (mais seguro)
     // ou simplesmente um loop for/await
     for (var lancamento in lancamentosValidos) {
-      final result = await _apiService.salvarLancamentoIndividual(
-        // Reutiliza a função individual
-        funcionarioId: lancamento['funcionarioId'],
-        acaoId: _acaoSelecionada!.id,
-        produtoId: _produtoSelecionado!.id,
-        lote: lote,
-        quantidadeKg: lancamento['quantidadeKg'],
-        horaInicio: horaInicioFormatada,
-        horaFim: horaFimFormatada,
+      final result = await _apiService.salvarLancamento(
+        lancamento['funcionarioId'],
+        _acaoSelecionada!.id,
+        _produtoSelecionado!.id,
+        lote,
+        lancamento['quantidadeKg'],
+        horaInicioFormatada,
+        horaFimFormatada,
       );
 
       if (result['success']) {
@@ -235,7 +234,7 @@ class _LancamentoMassaScreenState extends State<LancamentoMassaScreen> {
       );
 
       // Sucesso: Retorna para a tela principal
-      Navigator.of(context).pop();// Citação de BuildContext síncrona
+      Navigator.of(context).pop(); // Citação de BuildContext síncrona
     } else {
       _showSnackBar(
         'Nenhum lançamento foi salvo. Verifique a conexão e as quantidades.',
@@ -278,7 +277,7 @@ class _LancamentoMassaScreenState extends State<LancamentoMassaScreen> {
                             labelText: 'Ação / Serviço',
                             border: OutlineInputBorder(),
                           ),
-                          value: _acaoSelecionada,
+                          initialValue: _acaoSelecionada,
                           items: _acoes.map((a) {
                             return DropdownMenuItem(
                               value: a,
@@ -299,7 +298,7 @@ class _LancamentoMassaScreenState extends State<LancamentoMassaScreen> {
                             labelText: 'Tipo de Produto / Material',
                             border: OutlineInputBorder(),
                           ),
-                          value: _produtoSelecionado,
+                          initialValue: _produtoSelecionado,
                           items: _produtos.map((p) {
                             return DropdownMenuItem(
                               value: p,

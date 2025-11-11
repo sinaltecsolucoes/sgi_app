@@ -74,7 +74,13 @@ class _MontarEquipeScreenState extends State<MontarEquipeScreen> {
       _isLoading = true;
     });
 
-    final result = await _apiService.getEquipeDados();
+    final user = Provider.of<AuthProvider>(context, listen: false).user;
+    if (user == null) {
+      _showSnackBar('Usuário não autenticado.', isError: true);
+      return;
+    }
+
+    final result = await _apiService.getEquipeDados(apontadorId: user.id);
 
     if (result['success']) {
       final data = result['data'];
@@ -129,84 +135,109 @@ class _MontarEquipeScreenState extends State<MontarEquipeScreen> {
       return;
     }
 
-    setState(() {
-      _isLoading = true;
-    });
+    final nomeEquipe = _nomeEquipeController.text.trim();
+    final nomeFinal = nomeEquipe.isEmpty
+        ? 'Equipe ${DateTime.now().hour}h${DateTime.now().minute.toString().padLeft(2, '0')}'
+        : nomeEquipe;
+
+    setState(() => _isLoading = true);
 
     final result = await _apiService.salvarEquipe(
-      _nomeEquipeController.text,
+      nomeFinal,
       membrosSelecionadosIds,
     );
 
-    setState(() {
-      _isLoading = false;
-    });
-
-    // 1. Checagem de 'mounted' antes de usar BuildContext para navegação
     if (!mounted) return;
+    setState(() => _isLoading = false);
+
+    _showSnackBar(
+      result['message'] ??
+          (result['success'] ? 'Equipe salva!' : 'Erro ao salvar.'),
+      isError: !(result['success'] ?? false),
+    );
 
     if (result['success']) {
-      _showSnackBar(
-        result['message'] ?? 'Equipe salva com sucesso!',
-        isError: false,
-      );
-      Navigator.of(context).pop(); // Citação de BuildContext síncrona
-    } else {
-      _showSnackBar(
-        result['message'] ?? 'Falha ao salvar equipe.',
-        isError: true,
-      );
+      Navigator.of(context).pop();
     }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Montagem de Equipe')),
+      appBar: AppBar(title: const Text('Montar Equipe')),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
-          : SingleChildScrollView(
-              padding: const EdgeInsets.all(16.0),
+          : SafeArea(
+              // ← ADICIONADO
               child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  TextField(
-                    controller: _nomeEquipeController,
-                    decoration: const InputDecoration(
-                      labelText: 'Nome da Equipe',
-                      border: OutlineInputBorder(),
+                  // === Cabeçalho ===
+                  Padding(
+                    padding: const EdgeInsets.all(16.0),
+                    child: TextField(
+                      controller: _nomeEquipeController,
+                      decoration: const InputDecoration(
+                        labelText: 'Nome da Equipe',
+                        border: OutlineInputBorder(),
+                      ),
                     ),
                   ),
-                  const SizedBox(height: 20),
-                  Text(
-                    'Funcionários Presentes:',
-                    style: Theme.of(context).textTheme.titleMedium,
+                  const Padding(
+                    padding: EdgeInsets.symmetric(horizontal: 16.0),
+                    child: Text(
+                      'Funcionários Disponíveis:',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
                   ),
                   const Divider(),
-                  ..._membrosDisponiveis.map((membro) {
-                    return Card(
-                      child: CheckboxListTile(
-                        title: Text(membro.nome),
-                        subtitle: Text(membro.presente ? 'Presente' : 'Faltou'),
-                        value: membro.isSelecionado,
-                        onChanged: (bool? newValue) {
-                          setState(() {
-                            membro.isSelecionado = newValue ?? false;
-                          });
-                        },
-                      ),
-                    );
-                  }),
-                  const SizedBox(height: 30),
-                  ElevatedButton.icon(
-                    onPressed: _salvarEquipe,
-                    icon: const Icon(Icons.save),
-                    label: const Text(
-                      'Salvar Equipe',
-                      style: TextStyle(fontSize: 18),
+
+                  // === Lista com rolagem ===
+                  Expanded(
+                    child: ListView.builder(
+                      padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                      itemCount: _membrosDisponiveis.length,
+                      itemBuilder: (context, index) {
+                        final membro = _membrosDisponiveis[index];
+                        return Card(
+                          child: CheckboxListTile(
+                            title: Text(membro.nome),
+                            subtitle: Text(
+                              membro.presente ? 'Presente' : 'Ausente',
+                            ),
+                            value: membro.isSelecionado,
+                            onChanged: (bool? newValue) {
+                              setState(() {
+                                membro.isSelecionado = newValue ?? false;
+                              });
+                            },
+                          ),
+                        );
+                      },
                     ),
-                    style: ElevatedButton.styleFrom(
-                      minimumSize: const Size(double.infinity, 50),
+                  ),
+
+                  // === Botão fixo na parte inferior ===
+                  SafeArea(
+                    // ← SEGUNDO SafeArea (opcional, mas seguro)
+                    child: Padding(
+                      padding: const EdgeInsets.all(16.0),
+                      child: ElevatedButton.icon(
+                        onPressed: _salvarEquipe,
+                        icon: const Icon(Icons.save),
+                        label: const Text(
+                          'Salvar Equipe',
+                          style: TextStyle(fontSize: 18),
+                        ),
+                        style: ElevatedButton.styleFrom(
+                          minimumSize: const Size(double.infinity, 56),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                        ),
+                      ),
                     ),
                   ),
                 ],

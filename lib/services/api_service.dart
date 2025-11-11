@@ -3,8 +3,6 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 import '../providers/auth_provider.dart';
 import 'config_service.dart';
-import '../models/acao_model.dart';
-import '../models/produto_model.dart';
 
 class ApiService {
   final AuthProvider auth;
@@ -68,18 +66,25 @@ class ApiService {
   // ==========================================
   // DADOS DA EQUIPE (só apontador/admin)
   // ==========================================
-  Future<Map<String, dynamic>> getEquipeDados() async {
+  Future<Map<String, dynamic>> getEquipeDados({
+    required int apontadorId,
+  }) async {
     final url = await _buildUri('/equipe/dados');
 
     try {
       final response = await http.post(
         url,
         headers: {'Content-Type': 'application/json'},
-        body: jsonEncode(_addUserData({})),
+        body: jsonEncode(
+          _addUserData({
+            'apontador_id': apontadorId, // ← ENVIA O ID DO APONTADOR LOGADO
+          }),
+        ),
       );
 
-      final responseBody = jsonDecode(response.body);
-      return responseBody;
+      /* final responseBody = jsonDecode(response.body);
+      return responseBody;*/
+      return jsonDecode(response.body);
     } catch (e) {
       return {'success': false, 'message': 'Erro de rede: $e'};
     }
@@ -93,20 +98,35 @@ class ApiService {
     List<int> membrosIds,
   ) async {
     final url = await _buildUri('/equipe/salvar');
-
     try {
+      final user = auth.user;
+      if (user == null) {
+        return {'success': false, 'message': 'Usuário não autenticado.'};
+      }
+
+      final body = {
+        'apontador_id': user.id,
+        'funcionario_id': user.id, 
+        'funcionario_tipo': user.tipo,
+        'nome_equipe': nomeEquipe,
+        'membros_ids': membrosIds,
+      };
+
+      print('SALVAR EQUIPE → $body'); // DEBUG
+
       final response = await http.post(
         url,
         headers: {'Content-Type': 'application/json'},
-        body: jsonEncode(
-          _addUserData({'nome_equipe': nomeEquipe, 'membros_ids': membrosIds}),
-        ),
+        body: jsonEncode(body),
       );
 
       final responseBody = jsonDecode(response.body);
-      return responseBody;
+      return {
+        'success': responseBody['success'] ?? false,
+        'message': responseBody['message'] ?? 'Erro ao salvar.',
+      };
     } catch (e) {
-      return {'success': false, 'message': 'Erro ao salvar equipe: $e'};
+      return {'success': false, 'message': 'Erro: $e'};
     }
   }
 
@@ -172,7 +192,7 @@ class ApiService {
   // FUNCIONÁRIOS PARA CHAMADA (só porteiro)
   // ==========================================
   Future<Map<String, dynamic>> getFuncionariosParaChamada() async {
-    final url = await _buildUri('/presenca/funcionarios');
+    final url = await _buildUri('/presenca');
 
     try {
       final response = await http.post(
@@ -205,6 +225,28 @@ class ApiService {
       return responseBody;
     } catch (e) {
       return {'success': false, 'message': 'Erro ao salvar chamada: $e'};
+    }
+  }
+
+  // ==========================================
+  // SALVAR LANÇAMENTO EM MASSA
+  // ==========================================
+  Future<Map<String, dynamic>> salvarLancamentoMassa(
+    List<Map<String, dynamic>> lancamentos,
+  ) async {
+    final url = await _buildUri('/lancamento/salvar-massa');
+
+    try {
+      final response = await http.post(
+        url,
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode(_addUserData({'lancamentos': lancamentos})),
+      );
+
+      final responseBody = jsonDecode(response.body);
+      return responseBody;
+    } catch (e) {
+      return {'success': false, 'message': 'Erro ao salvar em massa: $e'};
     }
   }
 }

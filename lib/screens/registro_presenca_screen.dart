@@ -132,10 +132,10 @@ class _RegistroPresencaScreenState extends State<RegistroPresencaScreen> {
     }
   }
 
-  @override
+  /* @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Registro de Presença (Chamada)')),
+      appBar: AppBar(title: const Text('Realizar Chamada'), centerTitle: true),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
           : (_funcionarios.isEmpty
@@ -212,6 +212,97 @@ class _RegistroPresencaScreenState extends State<RegistroPresencaScreen> {
                       ),
                     ],
                   )),
+    );
+  }*/
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('Realizar Chamada'), centerTitle: true),
+      body: SafeArea(
+        // ← GARANTE QUE NÃO FIQUE ATRÁS DOS BOTÕES DO SISTEMA
+        child: Padding(
+          padding: const EdgeInsets.all(16.0),
+          child: Column(
+            children: [
+              // === LISTA DE FUNCIONÁRIOS (EXPANDIDA) ===
+              Expanded(
+                child: _isLoading
+                    ? const Center(child: CircularProgressIndicator())
+                    : ListView.builder(
+                        itemCount: _funcionarios.length,
+                        itemBuilder: (context, index) {
+                          final funcionario = _funcionarios[index];
+                          return Card(
+                            elevation: 2,
+                            margin: const EdgeInsets.symmetric(vertical: 4),
+                            child: CheckboxListTile(
+                              title: Text(
+                                funcionario.nome,
+                                style: TextStyle(
+                                  fontWeight: FontWeight.w500,
+                                  color: funcionario.estaPresente
+                                      ? Colors.black87
+                                      : Colors.grey[600],
+                                ),
+                              ),
+                              subtitle: Text(
+                                funcionario.estaPresente
+                                    ? 'Presente'
+                                    : 'Ausente',
+                                style: TextStyle(
+                                  color: funcionario.estaPresente
+                                      ? Colors.green
+                                      : Colors.red,
+                                ),
+                              ),
+                              value: funcionario.estaPresente,
+                              onChanged: (bool? value) {
+                                setState(() {
+                                  funcionario.estaPresente = value ?? false;
+                                });
+                              },
+                              secondary: Icon(
+                                funcionario.estaPresente
+                                    ? Icons.check_circle
+                                    : Icons.cancel,
+                                color: funcionario.estaPresente
+                                    ? Colors.green
+                                    : Colors.red,
+                              ),
+                            ),
+                          );
+                        },
+                      ),
+              ),
+
+              const SizedBox(height: 16),
+
+              // === BOTÃO FIXO NO FINAL (NUNCA MAIS ESCONDIDO!) ===
+              SizedBox(
+                width: double.infinity,
+                height: 56,
+                child: ElevatedButton.icon(
+                  onPressed: _isLoading ? null : _salvarChamada,
+                  icon: const Icon(Icons.send),
+                  label: const Text(
+                    'SALVAR CHAMADA',
+                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                  ),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.green,
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    elevation: 4,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }

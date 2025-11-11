@@ -183,15 +183,14 @@ class _LancamentoIndividualScreenState
       _isLoading = true;
     });
 
-    final result = await _apiService.salvarLancamentoIndividual(
-      //
-      funcionarioId: _membroSelecionado!.id,
-      acaoId: _acaoSelecionada!.id,
-      produtoId: _produtoSelecionado!.id,
-      lote: lote,
-      quantidadeKg: quantidadeKg,
-      horaInicio: horaInicioFormatada,
-      horaFim: horaFimFormatada,
+    final result = await _apiService.salvarLancamento(
+      _membroSelecionado!.id, // POSICIONAL
+      _acaoSelecionada!.id, // POSICIONAL
+      _produtoSelecionado!.id, // POSICIONAL
+      _loteController.text.trim(), // POSICIONAL
+      quantidadeKg, // POSICIONAL
+      horaInicioFormatada, // POSICIONAL
+      horaFimFormatada, // POSICIONAL
     );
 
     // 6. Finalizar Loading e Tratar Resposta
@@ -250,7 +249,7 @@ class _LancamentoIndividualScreenState
                             labelText: 'Membro da Equipe',
                             border: OutlineInputBorder(),
                           ),
-                          value: _membroSelecionado,
+                          initialValue: _membroSelecionado,
                           items: _membros.map((m) {
                             return DropdownMenuItem(
                               value: m,
@@ -271,7 +270,7 @@ class _LancamentoIndividualScreenState
                             labelText: 'Ação / Serviço',
                             border: OutlineInputBorder(),
                           ),
-                          value: _acaoSelecionada,
+                          initialValue: _acaoSelecionada,
                           items: _acoes.map((a) {
                             return DropdownMenuItem(
                               value: a,
@@ -292,7 +291,7 @@ class _LancamentoIndividualScreenState
                             labelText: 'Tipo de Produto / Material',
                             border: OutlineInputBorder(),
                           ),
-                          value: _produtoSelecionado,
+                          initialValue: _produtoSelecionado,
                           items: _produtos.map((p) {
                             return DropdownMenuItem(
                               value: p,
