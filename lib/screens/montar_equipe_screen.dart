@@ -82,8 +82,11 @@ class _MontarEquipeScreenState extends State<MontarEquipeScreen> {
 
     final result = await _apiService.getEquipeDados(apontadorId: user.id);
 
+    debugPrint('RESULTADO montarEquipeScreen: $result');
+
     if (result['success']) {
       final data = result['data'];
+      debugPrint('DATA montarEquipeScreen: $data');
       final equipeAtual = data['equipe_atual'];
       final membrosIdsAtuais = List<int>.from(data['membros_equipe_ids'] ?? []);
       final funcionariosApi = List<Map<String, dynamic>>.from(
@@ -95,16 +98,20 @@ class _MontarEquipeScreenState extends State<MontarEquipeScreen> {
           'Equipe ${DateTime.now().day}/${DateTime.now().month}';
       _nomeEquipeController.text = _nomeEquipeAtual;
 
-      _membrosDisponiveis = funcionariosApi
-          .where((f) => f['presente'] == 1)
+      /*_membrosDisponiveis = funcionariosApi
           .map(
             (f) => FuncionarioMembro.fromJson(
               f,
               membrosIdsAtuais.contains(f['id']),
             ),
           )
+          .toList();*/
+      _membrosDisponiveis = funcionariosApi
+          .where((f) => f['presente'] == 1 && f['na_minha_equipe'] == false)
+          .map((f) => FuncionarioMembro.fromJson(f, false))
           .toList();
     } else {
+      debugPrint('ERRO montarEquipeScreen: ${result['message']}');
       _showSnackBar(
         result['message'] ?? 'Erro ao carregar dados.',
         isError: true,

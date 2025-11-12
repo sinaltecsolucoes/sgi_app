@@ -13,6 +13,9 @@ class AuthProvider extends ChangeNotifier {
   bool get isLoggedIn => _isLoggedIn;
   UserModel? get user => _user;
 
+  // Getter para expor o token do usuário (ajuste o nome do campo se necessário)
+  String? get token => _user?.token;
+
   static const String _userKey = 'sgi_user_data';
 
   AuthProvider() {

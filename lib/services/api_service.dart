@@ -66,7 +66,7 @@ class ApiService {
   // ==========================================
   // DADOS DA EQUIPE (só apontador/admin)
   // ==========================================
-  Future<Map<String, dynamic>> getEquipeDados({
+  /* Future<Map<String, dynamic>> getEquipeDados({
     required int apontadorId,
   }) async {
     final url = await _buildUri('/equipe/dados');
@@ -88,6 +88,52 @@ class ApiService {
     } catch (e) {
       return {'success': false, 'message': 'Erro de rede: $e'};
     }
+  } */
+
+  // ==========================================
+  // DADOS DA EQUIPE (só apontador/admin)
+  // ==========================================
+  Future<Map<String, dynamic>> getEquipeDados({
+    required int apontadorId,
+  }) async {
+    final url = await _buildUri('/equipe/dados');
+
+    try {
+      // montar headers e adicionar token se existir
+      final headers = <String, String>{'Content-Type': 'application/json'};
+      if ((auth).token != null) {
+        headers['Authorization'] = 'Bearer ${auth.token}';
+      }
+
+      final body = _addUserData({'apontador_id': apontadorId});
+
+      // DEBUG: log de requisição
+      // print('GET EQUIPE → url=$url headers=$headers body=$body');
+
+      final response = await http.post(
+        url,
+        headers: headers,
+        body: jsonEncode(body),
+      );
+
+      // DEBUG: log de resposta
+      // print('RESP EQUIPE → status=${response.statusCode} body=${response.body}');
+
+      if (response.statusCode == 200) {
+        final responseBody = jsonDecode(response.body);
+        return responseBody;
+      } else {
+        // tenta decodificar mensagem de erro do servidor
+        String msg = 'Erro ${response.statusCode}';
+        try {
+          final err = jsonDecode(response.body);
+          msg = err['message'] ?? err.toString();
+        } catch (_) {}
+        return {'success': false, 'message': msg};
+      }
+    } catch (e) {
+      return {'success': false, 'message': 'Erro de rede: $e'};
+    }
   }
 
   // ==========================================
@@ -106,13 +152,13 @@ class ApiService {
 
       final body = {
         'apontador_id': user.id,
-        'funcionario_id': user.id, 
+        'funcionario_id': user.id,
         'funcionario_tipo': user.tipo,
         'nome_equipe': nomeEquipe,
         'membros_ids': membrosIds,
       };
 
-      print('SALVAR EQUIPE → $body'); // DEBUG
+      // print('SALVAR EQUIPE → $body'); // DEBUG
 
       final response = await http.post(
         url,
