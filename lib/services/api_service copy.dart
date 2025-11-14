@@ -64,7 +64,34 @@ class ApiService {
   }
 
   // ==========================================
-  // DADOS DA EQUIPE (CORRIGIDO: usa _addUserData + headers + POST)
+  // DADOS DA EQUIPE (só apontador/admin)
+  // ==========================================
+  /* Future<Map<String, dynamic>> getEquipeDados({
+    required int apontadorId,
+  }) async {
+    final url = await _buildUri('/equipe/dados');
+
+    try {
+      final response = await http.post(
+        url,
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode(
+          _addUserData({
+            'apontador_id': apontadorId, // ← ENVIA O ID DO APONTADOR LOGADO
+          }),
+        ),
+      );
+
+      /* final responseBody = jsonDecode(response.body);
+      return responseBody;*/
+      return jsonDecode(response.body);
+    } catch (e) {
+      return {'success': false, 'message': 'Erro de rede: $e'};
+    }
+  } */
+
+  // ==========================================
+  // DADOS DA EQUIPE (só apontador/admin)
   // ==========================================
   Future<Map<String, dynamic>> getEquipeDados({
     required int apontadorId,
@@ -72,12 +99,16 @@ class ApiService {
     final url = await _buildUri('/equipe/dados');
 
     try {
+      // montar headers e adicionar token se existir
       final headers = <String, String>{'Content-Type': 'application/json'};
-      if (auth.token != null) {
+      if ((auth).token != null) {
         headers['Authorization'] = 'Bearer ${auth.token}';
       }
 
       final body = _addUserData({'apontador_id': apontadorId});
+
+      // DEBUG: log de requisição
+      // print('GET EQUIPE → url=$url headers=$headers body=$body');
 
       final response = await http.post(
         url,
@@ -85,13 +116,18 @@ class ApiService {
         body: jsonEncode(body),
       );
 
+      // DEBUG: log de resposta
+      // print('RESP EQUIPE → status=${response.statusCode} body=${response.body}');
+
       if (response.statusCode == 200) {
-        return jsonDecode(response.body);
+        final responseBody = jsonDecode(response.body);
+        return responseBody;
       } else {
+        // tenta decodificar mensagem de erro do servidor
         String msg = 'Erro ${response.statusCode}';
         try {
           final err = jsonDecode(response.body);
-          msg = err['message'] ?? msg;
+          msg = err['message'] ?? err.toString();
         } catch (_) {}
         return {'success': false, 'message': msg};
       }
@@ -101,7 +137,7 @@ class ApiService {
   }
 
   // ==========================================
-  // SALVAR EQUIPE
+  // SALVAR EQUIPE (só apontador/admin)
   // ==========================================
   Future<Map<String, dynamic>> salvarEquipe(
     String nomeEquipe,
@@ -114,11 +150,15 @@ class ApiService {
         return {'success': false, 'message': 'Usuário não autenticado.'};
       }
 
-      final body = _addUserData({
+      final body = {
         'apontador_id': user.id,
+        'funcionario_id': user.id,
+        'funcionario_tipo': user.tipo,
         'nome_equipe': nomeEquipe,
         'membros_ids': membrosIds,
-      });
+      };
+
+      // print('SALVAR EQUIPE → $body'); // DEBUG
 
       final response = await http.post(
         url,
@@ -137,17 +177,20 @@ class ApiService {
   }
 
   // ==========================================
-  // OPÇÕES DE LANÇAMENTO
+  // OPÇÕES DE LANÇAMENTO (ações, produtos, membros)
   // ==========================================
   Future<Map<String, dynamic>> getLancamentoOpcoes() async {
     final url = await _buildUri('/lancamento/opcoes');
+
     try {
       final response = await http.post(
         url,
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode(_addUserData({})),
       );
-      return jsonDecode(response.body);
+
+      final responseBody = jsonDecode(response.body);
+      return responseBody;
     } catch (e) {
       return {'success': false, 'message': 'Erro ao carregar opções: $e'};
     }
@@ -166,6 +209,7 @@ class ApiService {
     String horaFim,
   ) async {
     final url = await _buildUri('/lancamento/salvar');
+
     try {
       final response = await http.post(
         url,
@@ -182,41 +226,49 @@ class ApiService {
           }),
         ),
       );
-      return jsonDecode(response.body);
+
+      final responseBody = jsonDecode(response.body);
+      return responseBody;
     } catch (e) {
       return {'success': false, 'message': 'Erro ao salvar: $e'};
     }
   }
 
   // ==========================================
-  // FUNCIONÁRIOS PARA CHAMADA
+  // FUNCIONÁRIOS PARA CHAMADA (só porteiro)
   // ==========================================
   Future<Map<String, dynamic>> getFuncionariosParaChamada() async {
     final url = await _buildUri('/presenca');
+
     try {
       final response = await http.post(
         url,
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode(_addUserData({})),
       );
-      return jsonDecode(response.body);
+
+      final responseBody = jsonDecode(response.body);
+      return responseBody;
     } catch (e) {
       return {'success': false, 'message': 'Erro ao carregar funcionários: $e'};
     }
   }
 
   // ==========================================
-  // SALVAR CHAMADA
+  // SALVAR CHAMADA (só porteiro)
   // ==========================================
   Future<Map<String, dynamic>> salvarChamada(List<int> presentesIds) async {
     final url = await _buildUri('/presenca/salvar');
+
     try {
       final response = await http.post(
         url,
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode(_addUserData({'presentes_ids': presentesIds})),
       );
-      return jsonDecode(response.body);
+
+      final responseBody = jsonDecode(response.body);
+      return responseBody;
     } catch (e) {
       return {'success': false, 'message': 'Erro ao salvar chamada: $e'};
     }
@@ -229,40 +281,35 @@ class ApiService {
     List<Map<String, dynamic>> lancamentos,
   ) async {
     final url = await _buildUri('/lancamento/salvar-massa');
+
     try {
       final response = await http.post(
         url,
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode(_addUserData({'lancamentos': lancamentos})),
       );
-      return jsonDecode(response.body);
+
+      final responseBody = jsonDecode(response.body);
+      return responseBody;
     } catch (e) {
       return {'success': false, 'message': 'Erro ao salvar em massa: $e'};
     }
   }
 
   // ==========================================
-  // BUSCAR EQUIPES DE OUTROS APONTADORES
+  // BUSCAR EQUIPES APONTADORES
   // ==========================================
   Future<List<Map<String, dynamic>>> buscarEquipesOutrosApontadores() async {
     final url = await _buildUri('/equipes/outros');
-    try {
-      final response = await http.post(
-        url,
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode(_addUserData({})),
-      );
-      final data = jsonDecode(response.body);
-      return data['success'] == true
-          ? List<Map<String, dynamic>>.from(data['equipes'])
-          : [];
-    } catch (e) {
-      return [];
-    }
+    final response = await http.post(url, body: jsonEncode(_addUserData({})));
+    final data = jsonDecode(response.body);
+    return data['success']
+        ? List<Map<String, dynamic>>.from(data['equipes'])
+        : [];
   }
 
   // ==========================================
-  // MOVER MEMBRO
+  // MOVER MEMBROS ENTRE EQUIPES
   // ==========================================
   Future<Map<String, dynamic>> moverMembro({
     required int membroId,
@@ -270,64 +317,46 @@ class ApiService {
     required int equipeDestinoId,
   }) async {
     final url = await _buildUri('/equipes/mover-membro');
-    try {
-      final response = await http.post(
-        url,
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode(
-          _addUserData({
-            'membro_id': membroId,
-            'equipe_origem_id': equipeOrigemId,
-            'equipe_destino_id': equipeDestinoId,
-          }),
-        ),
-      );
-      return jsonDecode(response.body);
-    } catch (e) {
-      return {'success': false, 'message': 'Erro: $e'};
-    }
+    final response = await http.post(
+      url,
+      body: jsonEncode(
+        _addUserData({
+          'membro_id': membroId,
+          'equipe_origem_id': equipeOrigemId,
+          'equipe_destino_id': equipeDestinoId,
+        }),
+      ),
+    );
+    return jsonDecode(response.body);
   }
 
   // ==========================================
-  // RETIRAR MEMBRO
+  // RETIRAR MEMBRO DA EQUIPE
   // ==========================================
   Future<Map<String, dynamic>> retirarMembro({
     required int equipeId,
     required int membroId,
   }) async {
     final url = await _buildUri('/equipes/retirar-membro');
-    try {
-      final response = await http.post(
-        url,
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode(
-          _addUserData({'equipe_id': equipeId, 'membro_id': membroId}),
-        ),
-      );
-      return jsonDecode(response.body);
-    } catch (e) {
-      return {'success': false, 'message': 'Erro: $e'};
-    }
+    final response = await http.post(
+      url,
+      body: jsonEncode(
+        _addUserData({'equipe_id': equipeId, 'membro_id': membroId}),
+      ),
+    );
+    return jsonDecode(response.body);
   }
 
   // ==========================================
-  // FUNCIONÁRIOS DISPONÍVEIS
+  // BUSCAR MEMBROS DISPONIVEIS
   // ==========================================
   Future<List<Map<String, dynamic>>> buscarFuncionariosDisponiveis() async {
     final url = await _buildUri('/equipes/funcionarios-disponiveis');
-    try {
-      final response = await http.post(
-        url,
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode(_addUserData({})),
-      );
-      final data = jsonDecode(response.body);
-      return data['success']
-          ? List<Map<String, dynamic>>.from(data['funcionarios'])
-          : [];
-    } catch (e) {
-      return [];
-    }
+    final response = await http.post(url, body: jsonEncode(_addUserData({})));
+    final data = jsonDecode(response.body);
+    return data['success']
+        ? List<Map<String, dynamic>>.from(data['funcionarios'])
+        : [];
   }
 
   // ==========================================
@@ -339,21 +368,16 @@ class ApiService {
     required List<int> novosMembrosIds,
   }) async {
     final url = await _buildUri('/equipes/editar');
-    try {
-      final response = await http.post(
-        url,
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode(
-          _addUserData({
-            'equipe_id': equipeId,
-            'novo_nome': novoNome,
-            'novos_membros_ids': novosMembrosIds,
-          }),
-        ),
-      );
-      return jsonDecode(response.body);
-    } catch (e) {
-      return {'success': false, 'message': 'Erro: $e'};
-    }
+    final response = await http.post(
+      url,
+      body: jsonEncode(
+        _addUserData({
+          'equipe_id': equipeId,
+          'novo_nome': novoNome,
+          'novos_membros_ids': novosMembrosIds,
+        }),
+      ),
+    );
+    return jsonDecode(response.body);
   }
 }
