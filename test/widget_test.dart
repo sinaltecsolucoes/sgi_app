@@ -2,9 +2,9 @@
 //import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:provider/provider.dart';
-import 'package:sgi_app/main.dart';
-import 'package:sgi_app/providers/auth_provider.dart';
-import 'package:sgi_app/screens/login_screen.dart';
+import 'package:nautilus/main.dart';
+import 'package:nautilus/providers/auth_provider.dart';
+import 'package:nautilus/screens/login_screen.dart';
 
 void main() {
   testWidgets('SgiApp shows LoginScreen when not logged in', (

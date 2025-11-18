@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'providers/auth_provider.dart';
 import 'screens/login_screen.dart';
-import 'screens/home_screen.dart'; // Futura tela principal
+import 'screens/home_screen.dart'; 
 
 void main() {
   runApp(
@@ -23,7 +23,7 @@ class SgiApp extends StatelessWidget {
     final authProvider = Provider.of<AuthProvider>(context);
 
     return MaterialApp(
-      title: 'SGI App Mobile',
+      title: 'NAUTILUS App',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
         primarySwatch: Colors.blueGrey,

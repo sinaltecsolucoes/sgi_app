@@ -72,9 +72,9 @@ class _LoginScreenState extends State<LoginScreen> {
     // Tela de login simples e responsiva
     return Scaffold(
       appBar: AppBar(
-        title: const Text('SGI App - Login'),
+        // title: const Text('NAUTILUS App - Login'),
         centerTitle: true,
-        // NOVO: Botão de Configurações na AppBar
+        // Botão de Configurações na AppBar
         actions: [
           IconButton(
             icon: const Icon(Icons.settings), // Ícone de configurações
@@ -96,11 +96,38 @@ class _LoginScreenState extends State<LoginScreen> {
             mainAxisAlignment: MainAxisAlignment.center,
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: <Widget>[
-              const Text(
-                'Acesso do Apontador',
+              /* const Text(
+                'NAUTILUS App',
                 textAlign: TextAlign.center,
                 style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+              ),*/
+              Column(
+                children: [
+                  // LOGO DA EMPRESA
+                  Image.asset(
+                    'assets/images/nautilus_logo.png', // Logomarca
+                    height: 120,
+                    fit: BoxFit.contain,
+                  ),
+                  const SizedBox(height: 20),
+                  /* const Text(
+                    'NAUTILUS App',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      fontSize: 28,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.indigo,
+                      letterSpacing: 1.2,
+                    ),
+                  ),*/
+                  const SizedBox(height: 8),
+                  /* Text(
+                    'Controle de Produção',
+                    style: TextStyle(fontSize: 16, color: Colors.grey[700]),
+                  ),*/
+                ],
               ),
+
               const SizedBox(height: 40),
 
               // Campo Login

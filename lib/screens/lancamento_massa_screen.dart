@@ -1,23 +1,18 @@
 // lib/screens/lancamento_massa_screen.dart
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:intl/intl.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:connectivity_plus/connectivity_plus.dart';
 import '../providers/auth_provider.dart';
 import '../services/api_service.dart';
-import '../models/acao_model.dart';
-import '../models/produto_model.dart';
 
-// Modelo para os membros da equipe, incluindo o controlador da quantidade
 class MembroProducao {
   final int id;
   final String nome;
-  // Adiciona um controlador para o campo de produção individual
-  final TextEditingController quantidadeController;
+  final TextEditingController quantidadeController = TextEditingController();
 
-  MembroProducao({required this.id, required this.nome})
-    : quantidadeController =
-          TextEditingController(); // Inicializa o controlador
-
+  MembroProducao({required this.id, required this.nome});
   factory MembroProducao.fromJson(Map<String, dynamic> json) {
     return MembroProducao(id: json['id'] as int, nome: json['nome'] as String);
   }
@@ -25,25 +20,26 @@ class MembroProducao {
 
 class LancamentoMassaScreen extends StatefulWidget {
   const LancamentoMassaScreen({super.key});
-
   @override
   State<LancamentoMassaScreen> createState() => _LancamentoMassaScreenState();
 }
 
 class _LancamentoMassaScreenState extends State<LancamentoMassaScreen> {
   late ApiService _apiService;
-
-  // Variáveis de Estado
   bool _isLoading = true;
-  int? _equipeId;
-  // Lista com os membros e seus respectivos controladores de quantidade
-  List<MembroProducao> _membrosProducao = [];
-  List<AcaoModel> _acoes = [];
-  List<ProdutoModel> _produtos = [];
 
-  // Variáveis do Formulário (Cabeçalho Comum)
-  AcaoModel? _acaoSelecionada;
-  ProdutoModel? _produtoSelecionado;
+  // Dados principais
+  List<Map<String, dynamic>> _equipes = [];
+  Map<String, dynamic>? _equipeSelecionada;
+  List<MembroProducao> _membros = [];
+
+  List<Map<String, dynamic>> _acoes = [];
+  List<Map<String, dynamic>> _produtos = [];
+
+  Map<String, dynamic>? _acaoSelecionada;
+  Map<String, dynamic>? _produtoSelecionado;
+  bool _produtoUsaLote = false;
+
   final TextEditingController _loteController = TextEditingController();
   TimeOfDay? _horaInicio;
   TimeOfDay? _horaFim;
@@ -51,393 +47,365 @@ class _LancamentoMassaScreenState extends State<LancamentoMassaScreen> {
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    final authProvider = Provider.of<AuthProvider>(context, listen: false);
-    _apiService = ApiService(authProvider);
-
-    if (_membrosProducao.isEmpty) {
-      _loadOpcoes();
-    }
+    _apiService = ApiService(Provider.of<AuthProvider>(context, listen: false));
+    _loadOpcoes();
+    _syncPending();
   }
 
-  void _showSnackBar(String message, {required bool isError}) {
-    // 1. Garantir que o widget ainda está montado
+  Future<void> _loadOpcoes() async {
+    setState(() => _isLoading = true);
+    final result = await _apiService
+        .getLancamentoOpcoesCompleto(); 
+
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message),
-        backgroundColor: isError ? Colors.red : Colors.green,
-        duration: const Duration(seconds: 4),
-      ),
-    );
-  }
-
-  // Função de carregamento das opções (Reutiliza a lógica do Individual)
-  void _loadOpcoes() async {
-    setState(() {
-      _isLoading = true;
-    });
-
-    final result = await _apiService.getLancamentoOpcoes();
 
     if (result['success']) {
       setState(() {
-        _equipeId = result['equipe_id'];
+        _equipes = List<Map<String, dynamic>>.from(result['equipes']);
+        _acoes = List<Map<String, dynamic>>.from(result['acoes']);
+        _produtos = List<Map<String, dynamic>>.from(result['produtos']);
 
-        // Mapeamento dos Membros: Converte para MembroProducao (com controlador)
-        _membrosProducao = (result['membros'] as List)
-            .map((json) => MembroProducao.fromJson(json))
-            .toList();
-
-        _acoes = result['acoes'] as List<AcaoModel>;
-        _produtos = result['produtos'] as List<ProdutoModel>;
-
-        // Pre-selecionar o primeiro item, se houver
-        _acaoSelecionada = _acoes.isNotEmpty ? _acoes.first : null;
-        _produtoSelecionado = _produtos.isNotEmpty ? _produtos.first : null;
+        if (_equipes.isNotEmpty) {
+          _equipeSelecionada = _equipes.first;
+          _carregarMembrosDaEquipe();
+        }
+        if (_acoes.isNotEmpty) _acaoSelecionada = _acoes.first;
+        if (_produtos.isNotEmpty) _produtoSelecionado = _produtos.first;
       });
     } else {
       _showSnackBar(
-        result['message'] ?? 'Erro ao carregar opções de lançamento.',
+        result['message'] ?? 'Erro ao carregar dados',
         isError: true,
       );
     }
+    setState(() => _isLoading = false);
+  }
 
+  Future<void> _carregarMembrosDaEquipe() async {
+    if (_equipeSelecionada == null) return;
+    setState(() => _isLoading = true);
+
+    final result = await _apiService.getMembrosEquipe(
+      _equipeSelecionada!['id'],
+    );
+    if (!mounted) return;
+
+    if (result['success']) {
+      setState(() {
+        _membros = (result['membros'] as List)
+            .map((j) => MembroProducao.fromJson(j))
+            .toList();
+      });
+    }
+    setState(() => _isLoading = false);
+  }
+
+  void _onProdutoChanged(Map<String, dynamic>? produto) {
     setState(() {
-      _isLoading = false;
+      _produtoSelecionado = produto;
+      _produtoUsaLote = produto?['usa_lote'] == 1;
+      if (!_produtoUsaLote) _loteController.clear();
     });
   }
 
-  // Função para abrir o seletor de tempo
-  Future<void> _selectTime(bool isStart) async {
-    final TimeOfDay? picked = await showTimePicker(
-      context: context,
-      initialTime: TimeOfDay.now(),
-    );
-    if (picked != null) {
-      setState(() {
-        if (isStart) {
-          _horaInicio = picked;
-        } else {
-          _horaFim = picked;
-        }
-      });
+  // === OFFLINE-FIRST (igual antes) ===
+  Future<bool> _isOnline() async {
+    final results = await Connectivity().checkConnectivity();
+    return results.contains(ConnectivityResult.mobile) ||
+        results.contains(ConnectivityResult.wifi) ||
+        results.contains(ConnectivityResult.vpn);
+  }
+
+  Future<void> _salvarLocalmente(Map<String, dynamic> dados) async {
+    final prefs = await SharedPreferences.getInstance();
+    final pendentes = prefs.getStringList('lancamentos_pendentes') ?? [];
+    pendentes.add(jsonEncode(dados));
+    await prefs.setStringList('lancamentos_pendentes', pendentes);
+  }
+
+  Future<void> _syncPending() async {
+    final prefs = await SharedPreferences.getInstance();
+    final pendentes = prefs.getStringList('lancamentos_pendentes') ?? [];
+    if (pendentes.isEmpty || !await _isOnline()) return;
+
+    final restantes = <String>[];
+    for (String item in pendentes) {
+      final dados = jsonDecode(item) as Map<String, dynamic>;
+      final lancamentos = List<Map<String, dynamic>>.from(dados['lancamentos']);
+      final res = await _apiService.salvarLancamentoMassa(lancamentos);
+      if (!res['success']) restantes.add(item);
+    }
+    await prefs.setStringList('lancamentos_pendentes', restantes);
+    if (restantes.isEmpty && mounted) {
+      _showSnackBar('Lançamentos offline sincronizados!');
     }
   }
 
-  // Formata o TimeOfDay para string HH:MM:SS (padrão da API)
-  String _formatTime(TimeOfDay time) {
-    final now = DateTime.now();
-    final dt = DateTime(now.year, now.month, now.day, time.hour, time.minute);
-    // Note: Necessário adicionar o pacote 'intl' ao pubspec.yaml
-    return DateFormat('HH:mm:ss').format(dt);
-  }
-
-  // Lógica de salvamento em loop na próxima etapa
-  void _salvarLancamentoMassa() async {
-    // 1. Validação do Cabeçalho
-    if (_acaoSelecionada == null ||
-        _produtoSelecionado == null ||
-        _horaInicio == null ||
-        _horaFim == null) {
-      // 2. Usar 'mounted' check antes de usar context (se necessário, mas aqui o showSnackBar já faz)
-      _showSnackBar(
-        'Preencha Ação, Produto e Horários no cabeçalho.',
-        isError: true,
-      );
+  Future<void> _salvarLancamentoMassa() async {
+    // Validações...
+    if (_equipeSelecionada == null ||
+        _acaoSelecionada == null ||
+        _produtoSelecionado == null) {
+      _showSnackBar('Preencha todos os campos obrigatórios', isError: true);
       return;
     }
 
-    // 2. Validação Condicional do Lote
-    final lote = _loteController.text.trim();
-    if (_produtoSelecionado!.usaLote && lote.isEmpty) {
-      _showSnackBar(
-        'O Lote do Produto é obrigatório para este item.',
-        isError: true,
-      );
-      return;
-    }
-
-    // 3. Formatar Horas
-    final String horaInicioFormatada = _formatTime(_horaInicio!);
-    final String horaFimFormatada = _formatTime(_horaFim!);
-
-    // 4. Identificar Lançamentos Válidos e Validar Quantidade
-    final List<Map<String, dynamic>> lancamentosValidos = [];
-    //int totalLancamentosTentados = 0;
-
-    for (var membro in _membrosProducao) {
-      final quantidadeKgText = membro.quantidadeController.text
-          .trim()
-          .replaceAll(',', '.');
-      final double? quantidadeKg = double.tryParse(quantidadeKgText);
-
-      // Consideramos apenas lançamentos com quantidade válida > 0
-      if (quantidadeKg != null && quantidadeKg > 0) {
-        // totalLancamentosTentados++;
-        lancamentosValidos.add({
-          'funcionarioId': membro.id,
-          'quantidadeKg': quantidadeKg,
+    final lancamentos = <Map<String, dynamic>>[];
+    for (var m in _membros) {
+      final qtd =
+          double.tryParse(m.quantidadeController.text.replaceAll(',', '.')) ??
+          0;
+      if (qtd > 0) {
+        lancamentos.add({
+          'funcionario_id': m.id,
+          'acao_id': _acaoSelecionada!['id'],
+          'produto_id': _produtoSelecionado!['id'],
+          'quantidade': qtd,
+          if (_produtoUsaLote && _loteController.text.trim().isNotEmpty)
+            'lote': _loteController.text.trim(),
+          if (_horaInicio != null) 'hora_inicio': _formatTime(_horaInicio!),
+          if (_horaFim != null) 'hora_fim': _formatTime(_horaFim!),
         });
       }
     }
 
-    if (lancamentosValidos.isEmpty) {
-      _showSnackBar(
-        'Preencha a produção (KG > 0) para ao menos um membro.',
-        isError: true,
-      );
+    if (lancamentos.isEmpty) {
+      _showSnackBar('Informe pelo menos uma produção', isError: true);
       return;
     }
 
-    // 5. Iniciar Loading e Execução do Loop de Salvamento
-    setState(() {
-      _isLoading = true;
-    });
+    final dados = {
+      'equipe_id': _equipeSelecionada!['id'],
+      'lancamentos': lancamentos,
+    };
 
-    int sucessos = 0;
-    int falhas = 0;
-
-    // Utilizamos Future.wait com um Future.forEach para processar sequencialmente (mais seguro)
-    // ou simplesmente um loop for/await
-    for (var lancamento in lancamentosValidos) {
-      final result = await _apiService.salvarLancamento(
-        lancamento['funcionarioId'],
-        _acaoSelecionada!.id,
-        _produtoSelecionado!.id,
-        lote,
-        lancamento['quantidadeKg'],
-        horaInicioFormatada,
-        horaFimFormatada,
-      );
-
-      if (result['success']) {
-        sucessos++;
-      } else {
-        falhas++;
-        // Opcional: registrar a falha no console ou em um log
-        // print('Falha ao salvar para ID ${lancamento['funcionarioId']}: ${result['message']}');
+    final online = await _isOnline();
+    if (online) {
+      final res = await _apiService.salvarLancamentoMassa(lancamentos);
+      if (res['success'] == true) {
+        if (!mounted) return;
+        _showSnackBar('Lançamento salvo com sucesso!');
+        Navigator.pop(context);
+        return;
       }
     }
 
-    // 6. Finalizar Loading e Relatar Resultado
-    setState(() {
-      _isLoading = false;
-    });
-
-    // 3. Checagem de 'mounted' antes de usar BuildContext para navegação
+    await _salvarLocalmente(dados);
     if (!mounted) return;
+    _showSnackBar(
+      online
+          ? 'Erro no servidor. Salvo offline.'
+          : 'Sem internet. Salvo offline e será sincronizado.',
+    );
+  }
 
-    if (sucessos > 0) {
-      _showSnackBar(
-        'Salvo $sucessos lançamentos. Falhas: $falhas.',
-        isError: falhas > 0,
-      );
+  String _formatTime(TimeOfDay t) =>
+      '${t.hour.toString().padLeft(2, '0')}:${t.minute.toString().padLeft(2, '0')}:00';
 
-      // Sucesso: Retorna para a tela principal
-      Navigator.of(context).pop(); // Citação de BuildContext síncrona
-    } else {
-      _showSnackBar(
-        'Nenhum lançamento foi salvo. Verifique a conexão e as quantidades.',
-        isError: true,
-      );
-    }
+  void _showSnackBar(String msg, {bool isError = false}) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(msg),
+        backgroundColor: isError ? Colors.red : Colors.green,
+      ),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Lançamento em Massa (Distribuição)')),
+      appBar: AppBar(title: const Text('Lançamentos Produção')),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
-          : (_membrosProducao.isEmpty
-                ? const Center(
-                    child: Padding(
-                      padding: EdgeInsets.all(16.0),
-                      child: Text(
-                        'Nenhum membro na equipe. Monte a equipe antes de lançar.',
-                        textAlign: TextAlign.center,
+          : SafeArea(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // 1. Seleção de Equipe
+                    DropdownButtonFormField<Map<String, dynamic>>(
+                      initialValue: _equipeSelecionada,
+                      hint: const Text('Selecione a Equipe'),
+                      items: _equipes
+                          .map(
+                            (e) => DropdownMenuItem(
+                              value: e,
+                              child: Text(e['nome']),
+                            ),
+                          )
+                          .toList(),
+                      onChanged: (eq) => setState(() {
+                        _equipeSelecionada = eq;
+                        _carregarMembrosDaEquipe();
+                      }),
+                      decoration: const InputDecoration(
+                        labelText: 'Equipe *',
+                        border: OutlineInputBorder(),
                       ),
                     ),
-                  )
-                : SingleChildScrollView(
-                    padding: const EdgeInsets.all(16.0),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        // Cabeçalho
-                        Text(
-                          'Equipe ID: ${_equipeId ?? 'N/A'}',
-                          style: Theme.of(context).textTheme.titleSmall,
-                        ),
-                        const Divider(),
+                    const SizedBox(height: 16),
 
-                        // 1. Ação (Dropdown)
-                        DropdownButtonFormField<AcaoModel>(
-                          decoration: const InputDecoration(
-                            labelText: 'Ação / Serviço',
-                            border: OutlineInputBorder(),
-                          ),
-                          initialValue: _acaoSelecionada,
-                          items: _acoes.map((a) {
-                            return DropdownMenuItem(
+                    // 2. Ação
+                    DropdownButtonFormField<Map<String, dynamic>>(
+                      initialValue: _acaoSelecionada,
+                      hint: const Text('Selecione a Ação'),
+                      items: _acoes
+                          .map(
+                            (a) => DropdownMenuItem(
                               value: a,
-                              child: Text(a.nome),
-                            );
-                          }).toList(),
-                          onChanged: (AcaoModel? newValue) {
-                            setState(() {
-                              _acaoSelecionada = newValue;
-                            });
-                          },
-                        ),
-                        const SizedBox(height: 20),
+                              child: Text(a['nome']),
+                            ),
+                          )
+                          .toList(),
+                      onChanged: (v) => setState(() => _acaoSelecionada = v),
+                      decoration: const InputDecoration(
+                        labelText: 'Ação *',
+                        border: OutlineInputBorder(),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
 
-                        // 2. Tipo de Produto (Dropdown)
-                        DropdownButtonFormField<ProdutoModel>(
-                          decoration: const InputDecoration(
-                            labelText: 'Tipo de Produto / Material',
-                            border: OutlineInputBorder(),
-                          ),
-                          initialValue: _produtoSelecionado,
-                          items: _produtos.map((p) {
-                            return DropdownMenuItem(
+                    // 3. Produto
+                    DropdownButtonFormField<Map<String, dynamic>>(
+                      initialValue: _produtoSelecionado,
+                      hint: const Text('Selecione o Produto'),
+                      items: _produtos
+                          .map(
+                            (p) => DropdownMenuItem(
                               value: p,
-                              child: Text(
-                                '${p.nome} ${p.usaLote ? '(Lote Sim)' : '(Lote Não)'}',
-                              ),
-                            );
-                          }).toList(),
-                          onChanged: (ProdutoModel? newValue) {
-                            setState(() {
-                              _produtoSelecionado = newValue;
-                            });
-                            _loteController.clear();
-                          },
-                        ),
-                        const SizedBox(height: 20),
-
-                        // 3. Lote do Produto (Condicional)
-                        if (_produtoSelecionado?.usaLote == true)
-                          Padding(
-                            padding: const EdgeInsets.only(bottom: 20.0),
-                            child: TextField(
-                              controller: _loteController,
-                              decoration: const InputDecoration(
-                                labelText: 'Lote do Produto (Obrigatório)',
-                                border: OutlineInputBorder(),
-                              ),
+                              child: Text(p['nome']),
                             ),
+                          )
+                          .toList(),
+                      onChanged: _onProdutoChanged,
+                      decoration: const InputDecoration(
+                        labelText: 'Produto *',
+                        border: OutlineInputBorder(),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+
+                    // 4. Lote (condicional)
+                    if (_produtoUsaLote)
+                      TextField(
+                        controller: _loteController,
+                        decoration: const InputDecoration(
+                          labelText: 'Lote *',
+                          border: OutlineInputBorder(),
+                        ),
+                      ),
+                    if (_produtoUsaLote) const SizedBox(height: 16),
+
+                    // 5. Horários
+                    Row(
+                      children: [
+                        Expanded(
+                          child: _buildTimePicker(
+                            'Início',
+                            _horaInicio,
+                            () => _selectTime(true),
                           ),
-
-                        // 4. Horas (Início e Fim)
-                        Row(
-                          children: [
-                            Expanded(
-                              child: _buildTimePicker(
-                                label: 'Hora Início',
-                                time: _horaInicio,
-                                onPressed: () => _selectTime(true),
-                              ),
-                            ),
-                            const SizedBox(width: 16),
-                            Expanded(
-                              child: _buildTimePicker(
-                                label: 'Hora Fim',
-                                time: _horaFim,
-                                onPressed: () => _selectTime(false),
-                              ),
-                            ),
-                          ],
                         ),
-                        const SizedBox(height: 20),
-                        const Divider(),
-                        const SizedBox(height: 20),
-
-                        // --- LISTA DE DISTRIBUIÇÃO ---
-                        Text(
-                          'Produção Individual (em KG):',
-                          style: Theme.of(context).textTheme.titleMedium,
-                        ),
-                        const SizedBox(height: 10),
-
-                        // Lista de Membros com campo de quantidade ao lado
-                        ..._membrosProducao.map((membro) {
-                          return Padding(
-                            padding: const EdgeInsets.only(bottom: 12.0),
-                            child: Row(
-                              children: [
-                                Expanded(
-                                  flex: 3,
-                                  child: Text(
-                                    membro.nome,
-                                    style: const TextStyle(fontSize: 16),
-                                  ),
-                                ),
-                                const SizedBox(width: 16),
-                                Expanded(
-                                  flex: 2,
-                                  child: TextField(
-                                    controller: membro
-                                        .quantidadeController, // Usa o controlador do objeto
-                                    keyboardType:
-                                        const TextInputType.numberWithOptions(
-                                          decimal: true,
-                                        ),
-                                    textAlign: TextAlign.right,
-                                    decoration: const InputDecoration(
-                                      labelText: 'KG',
-                                      border: OutlineInputBorder(),
-                                      isDense: true, // Torna o campo menor
-                                      contentPadding: EdgeInsets.symmetric(
-                                        vertical: 10,
-                                        horizontal: 8,
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          );
-                        }),
-                        const SizedBox(height: 40),
-
-                        // Botão Salvar
-                        ElevatedButton.icon(
-                          onPressed: _salvarLancamentoMassa,
-                          icon: const Icon(Icons.send),
-                          label: const Text(
-                            'Salvar Lançamentos',
-                            style: TextStyle(fontSize: 18),
-                          ),
-                          style: ElevatedButton.styleFrom(
-                            minimumSize: const Size(double.infinity, 50),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: _buildTimePicker(
+                            'Fim',
+                            _horaFim,
+                            () => _selectTime(false),
                           ),
                         ),
                       ],
                     ),
-                  )),
+                    const SizedBox(height: 24),
+
+                    const Text(
+                      'Produção Individual (KG):',
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const Divider(),
+
+                    // Lista de membros
+                    ..._membros.map(
+                      (m) => Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 6),
+                        child: Row(
+                          children: [
+                            Expanded(flex: 4, child: Text(m.nome)),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              flex: 2,
+                              child: TextField(
+                                controller: m.quantidadeController,
+                                keyboardType:
+                                    const TextInputType.numberWithOptions(
+                                      decimal: true,
+                                    ),
+                                decoration: const InputDecoration(
+                                  hintText: '0.0',
+                                  suffixText: 'KG',
+                                  border: OutlineInputBorder(),
+                                ),
+                                textAlign: TextAlign.center,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+
+                    const SizedBox(height: 40),
+                    SizedBox(
+                      width: double.infinity,
+                      height: 56,
+                      child: ElevatedButton.icon(
+                        onPressed: _isLoading ? null : _salvarLancamentoMassa,
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.green[700],
+                          foregroundColor: Colors.white,
+                        ),
+                        icon: const Icon(Icons.send),
+                        label: const Text(
+                          'SALVAR LANÇAMENTO EM MASSA',
+                          style: TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
     );
   }
 
-  // Widget auxiliar para os seletores de tempo (reutilizado)
-  Widget _buildTimePicker({
-    required String label,
-    TimeOfDay? time,
-    required VoidCallback onPressed,
-  }) {
+  Widget _buildTimePicker(String label, TimeOfDay? time, VoidCallback onTap) {
     return InkWell(
-      onTap: onPressed,
+      onTap: onTap,
       child: InputDecorator(
         decoration: InputDecoration(
           labelText: label,
           border: const OutlineInputBorder(),
           suffixIcon: const Icon(Icons.access_time),
         ),
-        child: Text(
-          time == null ? 'Selecionar Hora' : time.format(context),
-          style: const TextStyle(fontSize: 16),
-        ),
+        child: Text(time?.format(context) ?? 'Selecionar'),
       ),
     );
+  }
+
+  Future<void> _selectTime(bool inicio) async {
+    final picked = await showTimePicker(
+      context: context,
+      initialTime: TimeOfDay.now(),
+    );
+    if (picked != null && mounted) {
+      setState(() => inicio ? _horaInicio = picked : _horaFim = picked);
+    }
   }
 }

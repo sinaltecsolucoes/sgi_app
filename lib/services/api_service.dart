@@ -64,7 +64,7 @@ class ApiService {
   }
 
   // ==========================================
-  // DADOS DA EQUIPE (CORRIGIDO: usa _addUserData + headers + POST)
+  // DADOS DA EQUIPE (usa _addUserData + headers + POST)
   // ==========================================
   Future<Map<String, dynamic>> getEquipeDados({
     required int apontadorId,
@@ -133,23 +133,6 @@ class ApiService {
       };
     } catch (e) {
       return {'success': false, 'message': 'Erro: $e'};
-    }
-  }
-
-  // ==========================================
-  // OPÇÕES DE LANÇAMENTO
-  // ==========================================
-  Future<Map<String, dynamic>> getLancamentoOpcoes() async {
-    final url = await _buildUri('/lancamento/opcoes');
-    try {
-      final response = await http.post(
-        url,
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode(_addUserData({})),
-      );
-      return jsonDecode(response.body);
-    } catch (e) {
-      return {'success': false, 'message': 'Erro ao carregar opções: $e'};
     }
   }
 
@@ -229,15 +212,35 @@ class ApiService {
     List<Map<String, dynamic>> lancamentos,
   ) async {
     final url = await _buildUri('/lancamento/salvar-massa');
+
     try {
       final response = await http.post(
         url,
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode(_addUserData({'lancamentos': lancamentos})),
       );
-      return jsonDecode(response.body);
+
+      final Map<String, dynamic> decoded = jsonDecode(response.body);
+
+      // Garante que sempre retorne 'success' como bool
+      if (response.statusCode == 200 && decoded['success'] == true) {
+        return {
+          'success': true,
+          'message': decoded['message'] ?? 'Salvo com sucesso!',
+        };
+      } else {
+        return {
+          'success': false,
+          'message': decoded['message'] ?? 'Erro ao salvar no servidor.',
+        };
+      }
     } catch (e) {
-      return {'success': false, 'message': 'Erro ao salvar em massa: $e'};
+      // Qualquer erro de rede = offline
+      return {
+        'success': false,
+        'message': 'Sem conexão com o servidor.',
+        'offline': true, // ← sinaliza que foi erro de rede
+      };
     }
   }
 
@@ -256,6 +259,29 @@ class ApiService {
       return data['success'] == true
           ? List<Map<String, dynamic>>.from(data['equipes'])
           : [];
+    } catch (e) {
+      return [];
+    }
+  }
+
+  // ==========================================
+  // BUSCAR EQUIPES DE OUTROS APONTADORES
+  // ==========================================
+  Future<List<Map<String, dynamic>>> buscarTodasEquipesAtivas() async {
+    final url = await _buildUri('/equipes/todas-ativas');
+
+    try {
+      final response = await http.post(
+        url,
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode(_addUserData({})),
+      );
+
+      final data = jsonDecode(response.body);
+      if (response.statusCode == 200 && data['success']) {
+        return List<Map<String, dynamic>>.from(data['equipes'] ?? []);
+      }
+      return [];
     } catch (e) {
       return [];
     }
@@ -354,6 +380,74 @@ class ApiService {
       return jsonDecode(response.body);
     } catch (e) {
       return {'success': false, 'message': 'Erro: $e'};
+    }
+  }
+
+  // ==========================================
+  // EXCLUIR EQUIPE
+  // ==========================================
+  Future<Map<String, dynamic>> excluirEquipe({required int equipeId}) async {
+    final url = await _buildUri('/equipes/excluir');
+    try {
+      final response = await http.post(
+        url,
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode(_addUserData({'equipe_id': equipeId})),
+      );
+      return jsonDecode(response.body);
+    } catch (e) {
+      return {'success': false, 'message': 'Erro de conexão'};
+    }
+  }
+
+  // ==========================================
+  // OPÇÕES DE LANÇAMENTO
+  // ==========================================
+  Future<Map<String, dynamic>> getLancamentoOpcoes() async {
+    final url = await _buildUri('/lancamento/opcoes');
+    try {
+      final response = await http.post(
+        url,
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode(_addUserData({})),
+      );
+      return jsonDecode(response.body);
+    } catch (e) {
+      return {'success': false, 'message': 'Erro ao carregar opções: $e'};
+    }
+  }
+
+  // ==========================================
+  // OPÇÕES COMPLETAS (COM EQUIPES)
+  // ==========================================
+  Future<Map<String, dynamic>> getLancamentoOpcoesCompleto() async {
+    final url = await _buildUri('/lancamento/opcoes-completo');
+    try {
+      final response = await http.post(
+        url,
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode(_addUserData({})),
+      );
+      return jsonDecode(response.body);
+    } catch (e) {
+      return {'success': false, 'message': 'Erro de conexão'};
+    }
+  }
+
+  // ==========================================
+  // BUSCAR MEMBROS DE UMA EQUPE ESPECÍFICA
+  // ==========================================
+  Future<Map<String, dynamic>> getMembrosEquipe(int equipeId) async {
+    final url = await _buildUri('/lancamento/membros-equipe');
+    try {
+      final response = await http.post(
+        url,
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode(_addUserData({'equipe_id': equipeId})),
+      );
+      return jsonDecode(response.body);
+    } catch (e) {
+      return {'success': false, 'message': 'Erro ao carregar membros'};
     }
   }
 }
