@@ -4,7 +4,6 @@ import 'package:provider/provider.dart';
 import '../providers/auth_provider.dart';
 import '../services/api_service.dart';
 
-// Modelo Simples para Funcionários de Presença
 class FuncionarioPresenca {
   final int id;
   final String nome;
@@ -20,7 +19,6 @@ class FuncionarioPresenca {
     return FuncionarioPresenca(
       id: json['id'] as int,
       nome: json['nome'] as String,
-      // A API retorna 1 ou 0
       estaPresente: (json['esta_presente'] as int) == 1,
     );
   }
@@ -37,7 +35,23 @@ class _RegistroPresencaScreenState extends State<RegistroPresencaScreen> {
   late ApiService _apiService;
 
   List<FuncionarioPresenca> _funcionarios = [];
+  List<FuncionarioPresenca> _funcionariosFiltrados = [];
   bool _isLoading = true;
+
+  final TextEditingController _searchController = TextEditingController();
+
+  @override
+  void initState() {
+    super.initState();
+    _searchController.addListener(_filtrarFuncionarios);
+  }
+
+  @override
+  void dispose() {
+    _searchController.removeListener(_filtrarFuncionarios);
+    _searchController.dispose();
+    super.dispose();
+  }
 
   @override
   void didChangeDependencies() {
@@ -50,46 +64,38 @@ class _RegistroPresencaScreenState extends State<RegistroPresencaScreen> {
     }
   }
 
-  void _showSnackBar(String message, {required bool isError}) {
-    // 1. Garantir que o widget ainda está montado
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message),
-        backgroundColor: isError ? Colors.red : Colors.green,
-        duration: const Duration(seconds: 3),
-      ),
-    );
+  void _filtrarFuncionarios() {
+    final query = _searchController.text.toLowerCase();
+    setState(() {
+      _funcionariosFiltrados = _funcionarios
+          .where((f) => f.nome.toLowerCase().contains(query))
+          .toList();
+    });
   }
 
-  // Carrega a lista de funcionários do novo endpoint
   void _loadFuncionarios() async {
-    setState(() {
-      _isLoading = true;
-    });
+    setState(() => _isLoading = true);
 
     final result = await _apiService.getFuncionariosParaChamada();
 
-    if (result['success']) {
-      setState(() {
-        final List<Map<String, dynamic>> funcionariosApi =
-            List<Map<String, dynamic>>.from(result['funcionarios'] ?? []);
+    if (!mounted) return;
 
-        // Mapeia os dados da API para o modelo local
-        _funcionarios = funcionariosApi
-            .map((f) => FuncionarioPresenca.fromJson(f))
-            .toList();
+    if (result['success']) {
+      final lista = (result['funcionarios'] as List)
+          .map((f) => FuncionarioPresenca.fromJson(f))
+          .toList();
+
+      setState(() {
+        _funcionarios = lista;
+        _funcionariosFiltrados = lista; // inicial
       });
     } else {
       _showSnackBar(
-        result['message'] ?? 'Erro ao carregar lista de funcionários.',
+        result['message'] ?? 'Erro ao carregar funcionários.',
         isError: true,
       );
     }
-
-    setState(() {
-      _isLoading = false;
-    });
+    setState(() => _isLoading = false);
   }
 
   void _salvarChamada() async {
@@ -98,188 +104,122 @@ class _RegistroPresencaScreenState extends State<RegistroPresencaScreen> {
       return;
     }
 
-    // Coleta apenas os IDs dos funcionários que estão marcados como PRESENTES
     final presentesIds = _funcionarios
         .where((f) => f.estaPresente)
         .map((f) => f.id)
         .toList();
 
-    setState(() {
-      _isLoading = true;
-    });
-
+    setState(() => _isLoading = true);
     final result = await _apiService.salvarChamada(presentesIds);
+    setState(() => _isLoading = false);
 
-    setState(() {
-      _isLoading = false;
-    });
-
-    // 1. Checagem de 'mounted' antes de usar BuildContext para navegação
     if (!mounted) return;
 
     if (result['success']) {
-      _showSnackBar(
-        result['message'] ?? 'Chamada salva com sucesso!',
-        isError: false,
-      );
-      // Sucesso: Retorna para a tela principal
-      Navigator.of(context).pop(); // Citação de BuildContext síncrona
+      _showSnackBar('Chamada salva com sucesso!', isError: false);
+      Navigator.of(context).pop();
     } else {
-      _showSnackBar(
-        result['message'] ?? 'Falha ao salvar a chamada.',
-        isError: true,
-      );
+      _showSnackBar(result['message'] ?? 'Erro ao salvar.', isError: true);
     }
   }
 
-  /* @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text('Realizar Chamada'), centerTitle: true),
-      body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : (_funcionarios.isEmpty
-                ? const Center(
-                    child: Padding(
-                      padding: EdgeInsets.all(16.0),
-                      child: Text(
-                        'Nenhum funcionário de produção encontrado.',
-                        textAlign: TextAlign.center,
-                      ),
-                    ),
-                  )
-                : Column(
-                    children: [
-                      Expanded(
-                        child: ListView.builder(
-                          padding: const EdgeInsets.all(16.0),
-                          itemCount: _funcionarios.length,
-                          itemBuilder: (context, index) {
-                            final funcionario = _funcionarios[index];
-
-                            // Estilo condicional para feedback visual
-                            final color = funcionario.estaPresente
-                                //? Colors.green.withOpacity(0.1)
-                                // : Colors.red.withOpacity(0.1);
-                                ? Colors.green.withAlpha(50)
-                                : Colors.red.withAlpha(50);
-
-                            return Card(
-                              color: color,
-                              margin: const EdgeInsets.only(bottom: 10),
-                              child: CheckboxListTile(
-                                title: Text(
-                                  funcionario.nome,
-                                  style: TextStyle(
-                                    fontWeight: FontWeight.bold,
-                                    color: funcionario.estaPresente
-                                        ? Colors.black87
-                                        : Colors.red,
-                                  ),
-                                ),
-                                subtitle: Text(
-                                  funcionario.estaPresente
-                                      ? 'Presente'
-                                      : 'Ausente',
-                                ),
-                                value: funcionario.estaPresente,
-                                onChanged: (bool? newValue) {
-                                  setState(() {
-                                    // Atualiza o estado da lista
-                                    funcionario.estaPresente =
-                                        newValue ?? false;
-                                  });
-                                },
-                              ),
-                            );
-                          },
-                        ),
-                      ),
-                      // Botão Salvar Fixo no rodapé
-                      Padding(
-                        padding: const EdgeInsets.all(16.0),
-                        child: ElevatedButton.icon(
-                          onPressed: _salvarChamada,
-                          icon: const Icon(Icons.send),
-                          label: const Text(
-                            'Salvar Chamada',
-                            style: TextStyle(fontSize: 18),
-                          ),
-                          style: ElevatedButton.styleFrom(
-                            minimumSize: const Size(double.infinity, 50),
-                          ),
-                        ),
-                      ),
-                    ],
-                  )),
+  void _showSnackBar(String message, {required bool isError}) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: isError ? Colors.red : Colors.green,
+      ),
     );
-  }*/
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: const Text('Realizar Chamada'), centerTitle: true),
       body: SafeArea(
-        // ← GARANTE QUE NÃO FIQUE ATRÁS DOS BOTÕES DO SISTEMA
-        child: Padding(
-          padding: const EdgeInsets.all(16.0),
-          child: Column(
-            children: [
-              // === LISTA DE FUNCIONÁRIOS (EXPANDIDA) ===
-              Expanded(
-                child: _isLoading
-                    ? const Center(child: CircularProgressIndicator())
-                    : ListView.builder(
-                        itemCount: _funcionarios.length,
-                        itemBuilder: (context, index) {
-                          final funcionario = _funcionarios[index];
-                          return Card(
-                            elevation: 2,
-                            margin: const EdgeInsets.symmetric(vertical: 4),
-                            child: CheckboxListTile(
-                              title: Text(
-                                funcionario.nome,
-                                style: TextStyle(
-                                  fontWeight: FontWeight.w500,
-                                  color: funcionario.estaPresente
-                                      ? Colors.black87
-                                      : Colors.grey[600],
-                                ),
+        child: Column(
+          children: [
+            // CAMPO DE BUSCA
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+              child: TextField(
+                controller: _searchController,
+                decoration: InputDecoration(
+                  hintText: 'Buscar funcionário...',
+                  prefixIcon: const Icon(Icons.search),
+                  suffixIcon: _searchController.text.isNotEmpty
+                      ? IconButton(
+                          icon: const Icon(Icons.clear),
+                          onPressed: () {
+                            _searchController.clear();
+                          },
+                        )
+                      : null,
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+              ),
+            ),
+
+            // LISTA FILTRADA
+            Expanded(
+              child: _isLoading
+                  ? const Center(child: CircularProgressIndicator())
+                  : _funcionariosFiltrados.isEmpty
+                  ? const Center(child: Text('Nenhum funcionário encontrado'))
+                  : ListView.builder(
+                      itemCount: _funcionariosFiltrados.length,
+                      itemBuilder: (context, index) {
+                        final f = _funcionariosFiltrados[index];
+                        return Card(
+                          margin: const EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 4,
+                          ),
+                          child: CheckboxListTile(
+                            secondary: Icon(
+                              f.estaPresente
+                                  ? Icons.check_circle
+                                  : Icons.cancel,
+                              color: f.estaPresente ? Colors.green : Colors.red,
+                            ),
+                            title: Text(
+                              f.nome,
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w500,
                               ),
-                              subtitle: Text(
-                                funcionario.estaPresente
-                                    ? 'Presente'
-                                    : 'Ausente',
-                                style: TextStyle(
-                                  color: funcionario.estaPresente
-                                      ? Colors.green
-                                      : Colors.red,
-                                ),
-                              ),
-                              value: funcionario.estaPresente,
-                              onChanged: (bool? value) {
-                                setState(() {
-                                  funcionario.estaPresente = value ?? false;
-                                });
-                              },
-                              secondary: Icon(
-                                funcionario.estaPresente
-                                    ? Icons.check_circle
-                                    : Icons.cancel,
-                                color: funcionario.estaPresente
+                            ),
+                            subtitle: Text(
+                              f.estaPresente ? 'Presente' : 'Ausente',
+                              style: TextStyle(
+                                color: f.estaPresente
                                     ? Colors.green
                                     : Colors.red,
                               ),
                             ),
-                          );
-                        },
-                      ),
-              ),
+                            value: f.estaPresente,
+                            onChanged: (val) {
+                              setState(() {
+                                // Atualiza na lista original também!
+                                final original = _funcionarios.firstWhere(
+                                  (e) => e.id == f.id,
+                                );
+                                original.estaPresente = val ?? false;
+                                f.estaPresente = val ?? false;
+                              });
+                            },
+                          ),
+                        );
+                      },
+                    ),
+            ),
 
-              const SizedBox(height: 16),
-
-              // === BOTÃO FIXO NO FINAL (NUNCA MAIS ESCONDIDO!) ===
-              SizedBox(
+            // BOTÃO SALVAR
+            Padding(
+              padding: const EdgeInsets.all(16),
+              child: SizedBox(
                 width: double.infinity,
                 height: 56,
                 child: ElevatedButton.icon(
@@ -292,15 +232,11 @@ class _RegistroPresencaScreenState extends State<RegistroPresencaScreen> {
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Colors.green,
                     foregroundColor: Colors.white,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    elevation: 4,
                   ),
                 ),
               ),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );

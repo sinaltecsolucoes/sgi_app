@@ -5,8 +5,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../providers/auth_provider.dart';
 import 'registro_presenca_screen.dart';
 import 'gerenciar_equipes_screen.dart';
-import 'lancamento_individual_screen.dart';
 import 'lancamento_massa_screen.dart';
+import 'editar_producao_dia.dart';
 import 'lancamentos_pendentes_screen.dart';
 
 class HomeScreen extends StatelessWidget {
@@ -116,19 +116,7 @@ class HomeScreen extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(height: 16),
-               /* _buildBotao(
-                  context: context,
-                  titulo: 'LANÇAMENTO INDIVIDUAL',
-                  icone: Icons.person_add,
-                  cor: Colors.orange,
-                  onTap: () => Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => const LancamentoIndividualScreen(),
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 16),*/
+               
                 _buildBotao(
                   context: context,
                   titulo: 'LANÇAMENTOS PRODUÇÃO',
@@ -142,6 +130,21 @@ class HomeScreen extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(height: 16),
+
+                _buildBotao(
+                  context: context,
+                  titulo: "EDITAR PRODUÇÃO",
+                  icone: Icons.mode_edit_outline_outlined,
+                  cor: Colors.orange,
+                  onTap: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => const EditarProducaoScreen(),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 16),
+
                 FutureBuilder<int>(
                   future: _getQuantidadePendentes(),
                   builder: (context, snapshot) {

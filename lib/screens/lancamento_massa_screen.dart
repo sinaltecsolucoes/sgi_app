@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
+import 'package:dropdown_search/dropdown_search.dart';
 import '../providers/auth_provider.dart';
 import '../services/api_service.dart';
 
@@ -54,8 +55,7 @@ class _LancamentoMassaScreenState extends State<LancamentoMassaScreen> {
 
   Future<void> _loadOpcoes() async {
     setState(() => _isLoading = true);
-    final result = await _apiService
-        .getLancamentoOpcoesCompleto(); 
+    final result = await _apiService.getLancamentoOpcoesCompleto();
 
     if (!mounted) return;
 
@@ -225,67 +225,70 @@ class _LancamentoMassaScreenState extends State<LancamentoMassaScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     // 1. Seleção de Equipe
-                    DropdownButtonFormField<Map<String, dynamic>>(
-                      initialValue: _equipeSelecionada,
-                      hint: const Text('Selecione a Equipe'),
-                      items: _equipes
-                          .map(
-                            (e) => DropdownMenuItem(
-                              value: e,
-                              child: Text(e['nome']),
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 16),
+                      child: DropdownSearch<Map<String, dynamic>>(
+                        popupProps: const PopupProps.menu(
+                          showSearchBox: true,
+                          searchFieldProps: TextFieldProps(
+                            decoration: InputDecoration(
+                              hintText: "Buscar equipe...",
+                              border: OutlineInputBorder(),
                             ),
-                          )
-                          .toList(),
-                      onChanged: (eq) => setState(() {
-                        _equipeSelecionada = eq;
-                        _carregarMembrosDaEquipe();
-                      }),
-                      decoration: const InputDecoration(
-                        labelText: 'Equipe *',
-                        border: OutlineInputBorder(),
+                          ),
+                        ),
+                        items: _equipes,
+                        itemAsString: (item) => item['nome'],
+                        selectedItem: _equipeSelecionada,
+                        dropdownDecoratorProps: const DropDownDecoratorProps(
+                          dropdownSearchDecoration: InputDecoration(
+                            labelText: 'Equipe *',
+                            border: OutlineInputBorder(),
+                          ),
+                        ),
+                        onChanged: (eq) {
+                          setState(() {
+                            _equipeSelecionada = eq;
+                            _carregarMembrosDaEquipe();
+                          });
+                        },
                       ),
                     ),
-                    const SizedBox(height: 16),
 
                     // 2. Ação
-                    DropdownButtonFormField<Map<String, dynamic>>(
-                      initialValue: _acaoSelecionada,
-                      hint: const Text('Selecione a Ação'),
-                      items: _acoes
-                          .map(
-                            (a) => DropdownMenuItem(
-                              value: a,
-                              child: Text(a['nome']),
-                            ),
-                          )
-                          .toList(),
-                      onChanged: (v) => setState(() => _acaoSelecionada = v),
-                      decoration: const InputDecoration(
-                        labelText: 'Ação *',
-                        border: OutlineInputBorder(),
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 16),
+                      child: DropdownSearch<Map<String, dynamic>>(
+                        popupProps: const PopupProps.menu(showSearchBox: true),
+                        items: _acoes,
+                        itemAsString: (item) => item['nome'],
+                        selectedItem: _acaoSelecionada,
+                        dropdownDecoratorProps: const DropDownDecoratorProps(
+                          dropdownSearchDecoration: InputDecoration(
+                            labelText: 'Ação *',
+                            border: OutlineInputBorder(),
+                          ),
+                        ),
+                        onChanged: (v) => setState(() => _acaoSelecionada = v),
                       ),
                     ),
-                    const SizedBox(height: 16),
-
                     // 3. Produto
-                    DropdownButtonFormField<Map<String, dynamic>>(
-                      initialValue: _produtoSelecionado,
-                      hint: const Text('Selecione o Produto'),
-                      items: _produtos
-                          .map(
-                            (p) => DropdownMenuItem(
-                              value: p,
-                              child: Text(p['nome']),
-                            ),
-                          )
-                          .toList(),
-                      onChanged: _onProdutoChanged,
-                      decoration: const InputDecoration(
-                        labelText: 'Produto *',
-                        border: OutlineInputBorder(),
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 16),
+                      child: DropdownSearch<Map<String, dynamic>>(
+                        popupProps: const PopupProps.menu(showSearchBox: true),
+                        items: _produtos,
+                        itemAsString: (item) => item['nome'],
+                        selectedItem: _produtoSelecionado,
+                        dropdownDecoratorProps: const DropDownDecoratorProps(
+                          dropdownSearchDecoration: InputDecoration(
+                            labelText: 'Produto *',
+                            border: OutlineInputBorder(),
+                          ),
+                        ),
+                        onChanged: _onProdutoChanged,
                       ),
                     ),
-                    const SizedBox(height: 16),
 
                     // 4. Lote (condicional)
                     if (_produtoUsaLote)
@@ -370,7 +373,7 @@ class _LancamentoMassaScreenState extends State<LancamentoMassaScreen> {
                         ),
                         icon: const Icon(Icons.send),
                         label: const Text(
-                          'SALVAR LANÇAMENTO EM MASSA',
+                          'SALVAR LANÇAMENTOS',
                           style: TextStyle(
                             fontSize: 18,
                             fontWeight: FontWeight.bold,

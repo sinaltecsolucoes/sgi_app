@@ -450,4 +450,60 @@ class ApiService {
       return {'success': false, 'message': 'Erro ao carregar membros'};
     }
   }
+
+  // ==========================================
+  // BUSCAR LANÇAMENTOS DO DIA DO APONTADOR (PARA EDIÇÃO)
+  // ==========================================
+  Future<Map<String, dynamic>> getLancamentosDoDiaApontador(String data) async {
+    final url = await _buildUri('/producao/editar-dia');
+
+    try {
+      final headers = <String, String>{'Content-Type': 'application/json'};
+      if (auth.token != null) {
+        headers['Authorization'] = 'Bearer ${auth.token}';
+      }
+
+      final response = await http.post(
+        url,
+        headers: headers,
+        body: jsonEncode(_addUserData({'data': data})),
+      );
+
+      if (response.statusCode == 200) {
+        final json = jsonDecode(response.body);
+        if (json['success'] == true) {
+          return {'success': true, 'lancamentos': json['lancamentos'] ?? []};
+        }
+      }
+
+      // Se chegar aqui, deu erro
+      String msg = 'Erro ao carregar produção';
+      try {
+        final err = jsonDecode(response.body);
+        msg = err['message'] ?? msg;
+      } catch (_) {}
+      return {'success': false, 'message': msg};
+    } catch (e) {
+      return {'success': false, 'message': 'Erro de conexão: $e'};
+    }
+  }
+
+  Future<Map<String, dynamic>> atualizarLancamentoProducao(
+    Map<String, dynamic> dados,
+  ) async {
+    try {
+      final url = await _buildUri('/producao/atualizar');
+      final response = await http.post(
+        url,
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer ${auth.token}',
+        },
+        body: jsonEncode(_addUserData(dados)),
+      );
+      return jsonDecode(response.body);
+    } catch (e) {
+      return {'success': false, 'message': 'Sem conexão'};
+    }
+  }
 }
