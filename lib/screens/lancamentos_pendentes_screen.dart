@@ -62,16 +62,18 @@ class _LancamentosPendentesScreenState
 
     setState(() => _sincronizando = false);
 
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            'Sincronização concluída! $enviados enviados com sucesso.',
-          ),
-          backgroundColor: enviados > 0 ? Colors.green : Colors.orange,
+    if (!mounted) return;
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          'Sincronização concluída! $enviados enviados com sucesso.',
         ),
-      );
-    }
+        backgroundColor: enviados > 0 ? Colors.green : Colors.orange,
+      ),
+    );
+
+    Navigator.pop(context, true);
   }
 
   Future<void> _excluir(int index) async {
@@ -104,14 +106,18 @@ class _LancamentosPendentesScreenState
     await prefs.setStringList('lancamentos_pendentes', lista);
     await _carregarPendentes();
 
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Lançamento excluído (não será enviado)'),
-          backgroundColor: Colors.red,
-        ),
-      );
+    if (!mounted) return; // ← PROTEGE TUDO ABAIXO
+
+    if (_pendentes.isEmpty) {
+      Navigator.pop(context, true);
     }
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Lançamento excluído (não será enviado)'),
+        backgroundColor: Colors.red,
+      ),
+    );
   }
 
   String _formatarDataHora() {
@@ -179,7 +185,7 @@ class _LancamentosPendentesScreenState
                       backgroundColor: Colors.orange[100],
                       child: const Icon(Icons.cloud_off, color: Colors.orange),
                     ),
-                    title: Text('Lançamento em massa'),
+                    title: Text('Lançamentos Produção'),
                     subtitle: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
@@ -207,11 +213,36 @@ class _LancamentosPendentesScreenState
                               itemCount: lancamentos.length,
                               itemBuilder: (_, j) {
                                 final l = lancamentos[j];
+
+                                /*   return ListTile(
+                                  dense: true,
+                                  title: Text(
+                                    l['funcionario_nome'] ??
+                                        'ID ${l['funcionario_id']}',
+                                  ),
+                                  trailing: Text('${l['quantidade']} KG'),
+                                );*/
+
                                 return ListTile(
                                   dense: true,
                                   title: Text(
                                     l['funcionario_nome'] ??
                                         'ID ${l['funcionario_id']}',
+                                  ),
+                                  subtitle: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      if (l['acao'] != null)
+                                        Text('Ação: ${l['acao']}'),
+                                      if (l['produto'] != null)
+                                        Text('Produto: ${l['produto']}'),
+                                      if (l['hora_inicio'] != null &&
+                                          l['hora_fim'] != null)
+                                        Text(
+                                          'Horário: ${l['hora_inicio']} - ${l['hora_fim']}',
+                                        ),
+                                    ],
                                   ),
                                   trailing: Text('${l['quantidade']} KG'),
                                 );
@@ -236,8 +267,14 @@ class _LancamentosPendentesScreenState
               onPressed: _sincronizando ? null : _enviarTodos,
               icon: _sincronizando
                   ? const CircularProgressIndicator(color: Colors.white)
-                  : const Icon(Icons.send),
-              label: const Text('ENVIAR TUDO AGORA'),
+                  : const Icon(Icons.send, color: Colors.white),
+              label: const Text(
+                'ENVIAR TUDO AGORA',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
               backgroundColor: Colors.green[700],
             )
           : null,

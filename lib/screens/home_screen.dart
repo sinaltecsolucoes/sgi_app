@@ -9,8 +9,27 @@ import 'lancamento_massa_screen.dart';
 import 'editar_producao_dia.dart';
 import 'lancamentos_pendentes_screen.dart';
 
-class HomeScreen extends StatelessWidget {
+class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
+
+  @override
+  State<HomeScreen> createState() => _HomeScreenState();
+}
+
+class _HomeScreenState extends State<HomeScreen> {
+  Future<int>? _futurePendentes;
+
+  @override
+  void initState() {
+    super.initState();
+    _futurePendentes = _getQuantidadePendentes();
+  }
+
+  Future<void> _refreshPendentes() async {
+    setState(() {
+      _futurePendentes = _getQuantidadePendentes();
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -18,7 +37,7 @@ class HomeScreen extends StatelessWidget {
     final user = authProvider.user;
 
     if (user == null) {
-      return Scaffold(
+      return const Scaffold(
         body: Center(child: Text('Erro: Usuário não encontrado')),
       );
     }
@@ -29,13 +48,6 @@ class HomeScreen extends StatelessWidget {
 
     return Scaffold(
       appBar: AppBar(
-        title: Row(
-          children: const [
-            Icon(Icons.factory, size: 28),
-            SizedBox(width: 12),
-            Text('NAUTILUS App', style: TextStyle(fontWeight: FontWeight.bold)),
-          ],
-        ),
         centerTitle: true,
         actions: [
           IconButton(
@@ -116,7 +128,7 @@ class HomeScreen extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(height: 16),
-               
+
                 _buildBotao(
                   context: context,
                   titulo: 'LANÇAMENTOS PRODUÇÃO',
@@ -146,7 +158,7 @@ class HomeScreen extends StatelessWidget {
                 const SizedBox(height: 16),
 
                 FutureBuilder<int>(
-                  future: _getQuantidadePendentes(),
+                  future: _futurePendentes,
                   builder: (context, snapshot) {
                     final qtd = snapshot.data ?? 0;
                     return _buildBotao(
@@ -155,12 +167,17 @@ class HomeScreen extends StatelessWidget {
                       icone: Icons.cloud_off,
                       cor: qtd > 0 ? Colors.red[700]! : Colors.grey[600]!,
                       badge: qtd > 0 ? '$qtd' : null,
-                      onTap: () => Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (_) => const LancamentosPendentesScreen(),
-                        ),
-                      ),
+                      onTap: () async {
+                        final changed = await Navigator.push<bool>(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => const LancamentosPendentesScreen(),
+                          ),
+                        );
+                        if (changed == true) {
+                          await _refreshPendentes();
+                        }
+                      },
                     );
                   },
                 ),
@@ -234,7 +251,7 @@ class HomeScreen extends StatelessWidget {
     );
   }
 
-  // Botão padrão dos apontadores
+  // Botão padrão dos apontadores (com badge responsivo)
   Widget _buildBotao({
     required BuildContext context,
     required String titulo,
@@ -254,39 +271,49 @@ class HomeScreen extends StatelessWidget {
             borderRadius: BorderRadius.circular(16),
           ),
           elevation: 6,
+          padding: const EdgeInsets.symmetric(horizontal: 16),
         ),
-        child: Stack(
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(icone, size: 32, color: Colors.white),
-                const SizedBox(width: 12),
-                Text(
-                  titulo,
-                  style: const TextStyle(
-                    fontSize: 17,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.white,
+            Expanded(
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(icone, size: 32, color: Colors.white),
+                  const SizedBox(width: 12),
+                  Flexible(
+                    child: FittedBox(
+                      fit: BoxFit.scaleDown,
+                      alignment: Alignment.centerLeft,
+                      child: Text(
+                        titulo,
+                        style: const TextStyle(
+                          fontSize: 17,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.white,
+                        ),
+                        softWrap: false,
+                        overflow: TextOverflow.fade,
+                      ),
+                    ),
                   ),
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ],
+                ],
+              ),
             ),
             if (badge != null)
-              Positioned(
-                right: 16,
-                top: 12,
-                child: CircleAvatar(
-                  radius: 14,
-                  backgroundColor: Colors.white,
-                  child: Text(
-                    badge,
-                    style: const TextStyle(
-                      color: Colors.red,
-                      fontWeight: FontWeight.bold,
-                      fontSize: 12,
-                    ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                child: Text(
+                  badge,
+                  style: const TextStyle(
+                    color: Colors.red,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 12,
                   ),
                 ),
               ),

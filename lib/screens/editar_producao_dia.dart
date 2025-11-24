@@ -1,8 +1,11 @@
-// lib/screens/editar_producao_dia.dart
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import 'package:dropdown_search/dropdown_search.dart';
+import 'dart:convert';
+import 'package:http/http.dart' as http;
+import '../services/config_service.dart';
 import '../providers/auth_provider.dart';
 import '../services/api_service.dart';
 
@@ -108,7 +111,6 @@ class _EditarProducaoScreenState extends State<EditarProducaoScreen> {
           intervalos.add(l.intervalo);
         }
       }
-
       final ordenados = intervalos.toList()..sort();
 
       setState(() {
@@ -127,15 +129,6 @@ class _EditarProducaoScreenState extends State<EditarProducaoScreen> {
 
   double get _totalDia => _lancamentos.fold(0.0, (s, l) => s + l.quantidadeKg);
 
-  double get _totalIntervalo {
-    if (_filtroIntervalo == null || _filtroIntervalo == 'Todos os intervalos') {
-      return _totalDia;
-    }
-    return _lancamentos
-        .where((l) => l.intervalo == _filtroIntervalo)
-        .fold(0.0, (s, l) => s + l.quantidadeKg);
-  }
-
   List<Lancamento> get _filtrados {
     if (_filtroIntervalo == null || _filtroIntervalo == 'Todos os intervalos') {
       return _lancamentos;
@@ -143,44 +136,103 @@ class _EditarProducaoScreenState extends State<EditarProducaoScreen> {
     return _lancamentos.where((l) => l.intervalo == _filtroIntervalo).toList();
   }
 
+  double get _totalIntervalo {
+    return _filtrados.fold(0.0, (s, l) => s + l.quantidadeKg);
+  }
+
   String _fmt(double v) => NumberFormat('#,##0.000', 'pt_BR').format(v);
 
   Future<void> _salvarLancamento(Lancamento l) async {
     final resultado = await _api.atualizarLancamentoProducao(l.toJson());
-
     if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          resultado['success'] == true
+              ? 'Salvo!'
+              : (resultado['message'] ?? 'Erro'),
+        ),
+        backgroundColor: resultado['success'] == true
+            ? Colors.green
+            : Colors.red,
+      ),
+    );
+    if (resultado['success'] == true) setState(() {});
+  }
 
-    if (resultado['success'] == true) {
-      // Mensagem de sucesso LINDA
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: const Row(
-            children: [
-              Icon(Icons.check_circle, color: Colors.white),
-              SizedBox(width: 12),
-              Text(
-                'Lançamento atualizado com sucesso!',
-                style: TextStyle(fontWeight: FontWeight.bold),
-              ),
-            ],
-          ),
-          backgroundColor: Colors.green[700],
-          duration: const Duration(seconds: 3),
-          behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(10),
-          ),
+  Future<void> _excluirLancamento(
+    Lancamento l,
+    ValueNotifier<bool> editando,
+  ) async {
+    final confirmou = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        icon: const Icon(Icons.warning, color: Colors.red, size: 32),
+        title: const Text('Excluir lançamento?'),
+        content: Text(
+          'Excluir permanentemente:\n\n${l.funcionarioNome}\n${l.acaoNome} • ${l.produtoNome}\n${l.quantidadeKg.toStringAsFixed(3).replaceAll('.', ',')} kg',
         ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancelar'),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('EXCLUIR', style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmou != true) return;
+
+    try {
+      final config = ConfigService();
+      final baseUrl = await config.getBaseUrl();
+      final url = Uri.parse('$baseUrl/sgi_erp/api/producao/excluir');
+
+      final body = <String, dynamic>{'id': l.id};
+      if (_api.auth.user != null) {
+        body['funcionario_id'] = _api.auth.user!.id;
+        body['funcionario_tipo'] = _api.auth.user!.tipo;
+      }
+
+      final response = await http.post(
+        url,
+        headers: {
+          'Content-Type': 'application/json',
+          if (_api.auth.token != null)
+            'Authorization': 'Bearer ${_api.auth.token}',
+        },
+        body: jsonEncode(body),
       );
-      setState(() {}); // atualiza totais
-    } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(resultado['message'] ?? 'Erro ao salvar'),
-          backgroundColor: Colors.red[700],
-          behavior: SnackBarBehavior.floating,
-        ),
-      );
+
+      final res = jsonDecode(response.body);
+
+      if (!mounted) return;
+
+      if (res['success'] == true) {
+        setState(() => _lancamentos.removeWhere((x) => x.id == l.id));
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Excluído!'),
+            backgroundColor: Colors.red,
+          ),
+        );
+        editando.value = false;
+      } else {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(res['message'] ?? 'Erro')));
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('Erro de rede')));
+      }
     }
   }
 
@@ -196,7 +248,6 @@ class _EditarProducaoScreenState extends State<EditarProducaoScreen> {
       ),
       body: Column(
         children: [
-          // TOTAL DO DIA
           Container(
             width: double.infinity,
             padding: const EdgeInsets.all(16),
@@ -212,44 +263,44 @@ class _EditarProducaoScreenState extends State<EditarProducaoScreen> {
             ),
           ),
 
-          // FILTRO
-          Padding(
-            padding: const EdgeInsets.all(12),
-            child: DropdownButtonFormField<String>(
-              initialValue: _filtroIntervalo,
-              decoration: InputDecoration(
-                labelText: 'Filtrar por horário',
-                prefixIcon: const Icon(Icons.access_time),
-                filled: true,
-                fillColor: Colors.white,
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
+          if (_intervalos.length > 1)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(12, 12, 12, 0),
+              child: DropdownButtonFormField<String>(
+                initialValue: _filtroIntervalo,
+                decoration: InputDecoration(
+                  labelText: 'Filtrar por horário',
+                  prefixIcon: const Icon(Icons.access_time),
+                  filled: true,
+                  fillColor: Colors.white,
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
                 ),
+                items: _intervalos
+                    .map((i) => DropdownMenuItem(value: i, child: Text(i)))
+                    .toList(),
+                onChanged: (v) => setState(() => _filtroIntervalo = v),
               ),
-              items: _intervalos
-                  .map((i) => DropdownMenuItem(value: i, child: Text(i)))
-                  .toList(),
-              onChanged: (v) => setState(() => _filtroIntervalo = v),
             ),
-          ),
 
-          // TOTAL DO INTERVALO
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.all(12),
-            color: Colors.orange[100],
-            child: Text(
-              'TOTAL DO INTERVALO: ${_fmt(_totalIntervalo)} kg',
-              style: const TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-                color: Colors.orange,
+          if (_filtroIntervalo != null &&
+              _filtroIntervalo != 'Todos os intervalos')
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(12),
+              color: Colors.orange[50],
+              child: Text(
+                'TOTAL DO INTERVALO: ${_fmt(_totalIntervalo)} kg',
+                style: const TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.orange,
+                ),
+                textAlign: TextAlign.center,
               ),
-              textAlign: TextAlign.center,
             ),
-          ),
 
-          // LISTA EDITÁVEL
           Expanded(
             child: _carregando
                 ? const Center(
@@ -271,6 +322,7 @@ class _EditarProducaoScreenState extends State<EditarProducaoScreen> {
                         child: ValueListenableBuilder<bool>(
                           valueListenable: editando,
                           builder: (context, isEditing, _) {
+                            // MODO VISUALIZAÇÃO
                             if (!isEditing) {
                               return ListTile(
                                 title: Text(
@@ -282,7 +334,6 @@ class _EditarProducaoScreenState extends State<EditarProducaoScreen> {
                                 subtitle: Text(
                                   '${l.acaoNome} • ${l.produtoNome}\n${l.intervalo}',
                                 ),
-
                                 trailing: Text(
                                   '${l.quantidadeKg.toStringAsFixed(3).replaceAll('.', ',')} kg',
                                   style: const TextStyle(
@@ -291,228 +342,280 @@ class _EditarProducaoScreenState extends State<EditarProducaoScreen> {
                                     color: Colors.orange,
                                   ),
                                 ),
-
                                 onTap: () => editando.value = true,
                                 isThreeLine: true,
                               );
                             }
 
+                            // MODO EDIÇÃO (TUDO AQUI DENTRO!)
+                            // MODO EDIÇÃO
                             return Padding(
                               padding: const EdgeInsets.all(16),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    l.funcionarioNome,
-                                    style: const TextStyle(
-                                      fontSize: 18,
-                                      fontWeight: FontWeight.bold,
-                                    ),
-                                  ),
+                              child: ValueListenableBuilder<bool>(
+                                valueListenable: editando,
+                                builder: (context, _, __) {
+                                  // Este ValueNotifier força rebuild só do card quando horário mudar
+                                  final rebuildTrigger = ValueNotifier(0);
 
-                                  const SizedBox(height: 16),
+                                  return ValueListenableBuilder(
+                                    valueListenable: rebuildTrigger,
+                                    builder: (context, _, __) {
+                                      return Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: [
+                                          Text(
+                                            l.funcionarioNome,
+                                            style: const TextStyle(
+                                              fontSize: 18,
+                                              fontWeight: FontWeight.bold,
+                                            ),
+                                          ),
+                                          const SizedBox(height: 16),
 
-                                  // AÇÃO
-                                  DropdownSearch<Map<String, dynamic>>(
-                                    items: _acoes,
-                                    itemAsString: (item) => item['nome'],
-                                    selectedItem: _acoes.firstWhere(
-                                      (a) => a['id'] == l.acaoId,
-                                      orElse: () => _acoes[0],
-                                    ),
-                                    onChanged: (v) {
-                                      l.acaoId = v!['id'];
-                                      l.acaoNome = v['nome'];
-                                    },
-                                    dropdownDecoratorProps:
-                                        const DropDownDecoratorProps(
-                                          dropdownSearchDecoration:
-                                              InputDecoration(
-                                                labelText: 'Ação',
-                                                border: OutlineInputBorder(),
+                                          // AÇÃO
+                                          DropdownSearch<Map<String, dynamic>>(
+                                            items: _acoes,
+                                            itemAsString: (item) =>
+                                                item['nome'],
+                                            selectedItem: _acoes.firstWhere(
+                                              (a) => a['id'] == l.acaoId,
+                                              orElse: () => _acoes[0],
+                                            ),
+                                            onChanged: (v) {
+                                              if (v != null) {
+                                                l.acaoId = v['id'];
+                                                l.acaoNome = v['nome'];
+                                              }
+                                            },
+                                            dropdownDecoratorProps:
+                                                const DropDownDecoratorProps(
+                                                  dropdownSearchDecoration:
+                                                      InputDecoration(
+                                                        labelText: 'Ação',
+                                                        border:
+                                                            OutlineInputBorder(),
+                                                      ),
+                                                ),
+                                          ),
+                                          const SizedBox(height: 12),
+
+                                          // PRODUTO
+                                          DropdownSearch<Map<String, dynamic>>(
+                                            items: _produtos,
+                                            itemAsString: (item) =>
+                                                item['nome'],
+                                            selectedItem: _produtos.firstWhere(
+                                              (p) => p['id'] == l.produtoId,
+                                              orElse: () => _produtos[0],
+                                            ),
+                                            onChanged: (v) {
+                                              if (v != null) {
+                                                l.produtoId = v['id'];
+                                                l.produtoNome = v['nome'];
+                                              }
+                                            },
+                                            dropdownDecoratorProps:
+                                                const DropDownDecoratorProps(
+                                                  dropdownSearchDecoration:
+                                                      InputDecoration(
+                                                        labelText: 'Produto',
+                                                        border:
+                                                            OutlineInputBorder(),
+                                                      ),
+                                                ),
+                                          ),
+                                          const SizedBox(height: 12),
+
+                                          // QUANTIDADE
+                                          TextField(
+                                            keyboardType:
+                                                const TextInputType.numberWithOptions(
+                                                  decimal: true,
+                                                ),
+                                            decoration: const InputDecoration(
+                                              labelText: 'Quantidade (kg)',
+                                              border: OutlineInputBorder(),
+                                              suffixText: ' kg',
+                                              hintText: 'Ex: 11,500',
+                                            ),
+                                            inputFormatters: [
+                                              FilteringTextInputFormatter.allow(
+                                                RegExp(r'[0-9.,]'),
                                               ),
-                                        ),
-                                  ),
+                                            ],
+                                            controller: TextEditingController(
+                                              text: l.quantidadeKg
+                                                  .toStringAsFixed(3)
+                                                  .replaceAll('.', ','),
+                                            ),
+                                            onChanged: (v) {
+                                              final limpo = v.replaceAll(
+                                                ',',
+                                                '.',
+                                              );
+                                              l.quantidadeKg =
+                                                  double.tryParse(limpo) ?? 0.0;
+                                            },
+                                          ),
+                                          const SizedBox(height: 16),
 
-                                  const SizedBox(height: 12),
-
-                                  // PRODUTO
-                                  DropdownSearch<Map<String, dynamic>>(
-                                    items: _produtos,
-                                    itemAsString: (item) => item['nome'],
-                                    selectedItem: _produtos.firstWhere(
-                                      (p) => p['id'] == l.produtoId,
-                                      orElse: () => _produtos[0],
-                                    ),
-                                    onChanged: (v) {
-                                      l.produtoId = v!['id'];
-                                      l.produtoNome = v['nome'];
-                                    },
-                                    dropdownDecoratorProps:
-                                        const DropDownDecoratorProps(
-                                          dropdownSearchDecoration:
-                                              InputDecoration(
-                                                labelText: 'Produto',
-                                                border: OutlineInputBorder(),
-                                              ),
-                                        ),
-                                  ),
-
-                                  const SizedBox(height: 12),
-
-                                  // QUANTIDADE
-                                  TextField(
-                                    keyboardType:
-                                        const TextInputType.numberWithOptions(
-                                          decimal: true,
-                                        ),
-                                    decoration: const InputDecoration(
-                                      labelText: 'Quantidade (kg)',
-                                      border: OutlineInputBorder(),
-                                      suffixText: ' kg',
-                                      hintText: 'Ex: 11,5 ou 11.5',
-                                    ),
-                                    controller:
-                                        TextEditingController(
-                                            text: l.quantidadeKg
-                                                .toStringAsFixed(3),
-                                          )
-                                          ..selection =
-                                              TextSelection.fromPosition(
-                                                TextPosition(
-                                                  offset: l.quantidadeKg
-                                                      .toStringAsFixed(3)
-                                                      .length,
+                                          // HORÁRIO INÍCIO
+                                          Row(
+                                            children: [
+                                              Expanded(
+                                                child: Text(
+                                                  'Início: ${l.horaInicio}',
+                                                  style: const TextStyle(
+                                                    fontWeight: FontWeight.w500,
+                                                  ),
                                                 ),
                                               ),
-                                    onChanged: (textoDigitado) {
-                                      // REMOVE TUDO QUE NÃO É NÚMERO, VIRGULA OU PONTO
-                                      String limpo = textoDigitado.replaceAll(
-                                        RegExp(r'[^0-9,.]+'),
-                                        '',
+                                              IconButton(
+                                                icon: const Icon(
+                                                  Icons.access_time,
+                                                  color: Colors.orange,
+                                                ),
+                                                onPressed: () async {
+                                                  final t =
+                                                      await showTimePicker(
+                                                        context: context,
+                                                        initialTime: TimeOfDay(
+                                                          hour:
+                                                              int.tryParse(
+                                                                l.horaInicio
+                                                                    .split(
+                                                                      ':',
+                                                                    )[0],
+                                                              ) ??
+                                                              8,
+                                                          minute:
+                                                              int.tryParse(
+                                                                l.horaInicio
+                                                                    .split(
+                                                                      ':',
+                                                                    )[1],
+                                                              ) ??
+                                                              0,
+                                                        ),
+                                                      );
+                                                  if (t != null) {
+                                                    l.horaInicio = t.format(
+                                                      context,
+                                                    );
+                                                    rebuildTrigger
+                                                        .value++; // FORÇA REBUILD LOCAL
+                                                  }
+                                                },
+                                              ),
+                                            ],
+                                          ),
+
+                                          // HORÁRIO FIM
+                                          Row(
+                                            children: [
+                                              Expanded(
+                                                child: Text(
+                                                  'Fim: ${l.horaFim}',
+                                                  style: const TextStyle(
+                                                    fontWeight: FontWeight.w500,
+                                                  ),
+                                                ),
+                                              ),
+                                              IconButton(
+                                                icon: const Icon(
+                                                  Icons.access_time,
+                                                  color: Colors.orange,
+                                                ),
+                                                onPressed: () async {
+                                                  final t =
+                                                      await showTimePicker(
+                                                        context: context,
+                                                        initialTime: TimeOfDay(
+                                                          hour:
+                                                              int.tryParse(
+                                                                l.horaFim.split(
+                                                                  ':',
+                                                                )[0],
+                                                              ) ??
+                                                              17,
+                                                          minute:
+                                                              int.tryParse(
+                                                                l.horaFim.split(
+                                                                  ':',
+                                                                )[1],
+                                                              ) ??
+                                                              0,
+                                                        ),
+                                                      );
+                                                  if (t != null) {
+                                                    l.horaFim = t.format(
+                                                      context,
+                                                    );
+                                                    rebuildTrigger
+                                                        .value++; // FORÇA REBUILD LOCAL
+                                                  }
+                                                },
+                                              ),
+                                            ],
+                                          ),
+
+                                          const SizedBox(height: 24),
+
+                                          // BOTÕES
+                                          Row(
+                                            mainAxisAlignment:
+                                                MainAxisAlignment.end,
+                                            children: [
+                                              TextButton(
+                                                onPressed: () =>
+                                                    editando.value = false,
+                                                child: const Text('Cancelar'),
+                                              ),
+                                              const SizedBox(width: 8),
+                                              ElevatedButton.icon(
+                                                onPressed: () =>
+                                                    _excluirLancamento(
+                                                      l,
+                                                      editando,
+                                                    ),
+                                                icon: const Icon(
+                                                  Icons.delete_forever,
+                                                  size: 18,
+                                                ),
+                                                label: const Text('EXCLUIR'),
+                                                style: ElevatedButton.styleFrom(
+                                                  backgroundColor:
+                                                      Colors.red[600],
+                                                  foregroundColor: Colors.white,
+                                                ),
+                                              ),
+                                              const SizedBox(width: 8),
+                                              ElevatedButton(
+                                                style: ElevatedButton.styleFrom(
+                                                  backgroundColor: Colors.green,
+                                                ),
+                                                onPressed: () async {
+                                                  await _salvarLancamento(l);
+                                                  setState(
+                                                    () {},
+                                                  ); // só aqui atualiza totais e lista
+                                                  editando.value = false;
+                                                },
+                                                child: const Text(
+                                                  'SALVAR',
+                                                  style: TextStyle(
+                                                    color: Colors.white,
+                                                  ),
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        ],
                                       );
-
-                                      // SUBSTITUI VÍRGULA POR PONTO (padrão Dart)
-                                      limpo = limpo.replaceAll(',', '.');
-
-                                      // REMOVE PONTOS DUPLICADOS (evita 11..5)
-                                      while (limpo.contains('..')) {
-                                        limpo = limpo.replaceAll('..', '.');
-                                      }
-
-                                      // SE TIVER MAIS DE UM PONTO, REMOVE OS EXTRAS
-                                      final partes = limpo.split('.');
-                                      if (partes.length > 2) {
-                                        limpo =
-                                            '${partes[0]}.${partes.sublist(1).join()}';
-                                      }
-
-                                      // ATUALIZA O CAMPO VISUAL (com vírgula para o usuário)
-                                      final valor =
-                                          double.tryParse(limpo) ?? 0.0;
-                                      l.quantidadeKg = valor;
-
-                                      // Atualiza o texto no campo com vírgula (melhor UX)
-                                      final controller = TextEditingController(
-                                        text: valor
-                                            .toStringAsFixed(3)
-                                            .replaceAll('.', ','),
-                                      );
-                                      controller.selection =
-                                          TextSelection.fromPosition(
-                                            TextPosition(
-                                              offset: controller.text.length,
-                                            ),
-                                          );
                                     },
-                                  ),
-
-                                  const SizedBox(height: 16),
-
-                                  // HORÁRIOS
-                                  Row(
-                                    children: [
-                                      Expanded(
-                                        child: Text(
-                                          'Início: ${l.horaInicio}',
-                                          style: const TextStyle(
-                                            fontWeight: FontWeight.w500,
-                                          ),
-                                        ),
-                                      ),
-                                      IconButton(
-                                        icon: const Icon(
-                                          Icons.access_time,
-                                          color: Colors.orange,
-                                        ),
-                                        onPressed: () async {
-                                          final t = await showTimePicker(
-                                            context: context,
-                                            initialTime: TimeOfDay.now(),
-                                          );
-                                          if (t != null) {
-                                            l.horaInicio = t.format(context);
-                                            setState(() {});
-                                          }
-                                        },
-                                      ),
-                                    ],
-                                  ),
-                                  Row(
-                                    children: [
-                                      Expanded(
-                                        child: Text(
-                                          'Fim: ${l.horaFim}',
-                                          style: const TextStyle(
-                                            fontWeight: FontWeight.w500,
-                                          ),
-                                        ),
-                                      ),
-                                      IconButton(
-                                        icon: const Icon(
-                                          Icons.access_time,
-                                          color: Colors.orange,
-                                        ),
-                                        onPressed: () async {
-                                          final t = await showTimePicker(
-                                            context: context,
-                                            initialTime: TimeOfDay.now(),
-                                          );
-                                          if (t != null) {
-                                            l.horaFim = t.format(context);
-                                            setState(() {});
-                                          }
-                                        },
-                                      ),
-                                    ],
-                                  ),
-
-                                  const SizedBox(height: 20),
-
-                                  // BOTÕES
-                                  Row(
-                                    mainAxisAlignment: MainAxisAlignment.end,
-                                    children: [
-                                      TextButton(
-                                        onPressed: () => editando.value = false,
-                                        child: const Text('Cancelar'),
-                                      ),
-                                      ElevatedButton(
-                                        style: ElevatedButton.styleFrom(
-                                          backgroundColor: Colors.green,
-                                        ),
-                                        onPressed: () async {
-                                          await _salvarLancamento(l);
-                                          editando.value = false;
-                                        },
-                                        child: const Text(
-                                          'SALVAR',
-                                          style: TextStyle(color: Colors.white),
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ],
+                                  );
+                                },
                               ),
                             );
                           },

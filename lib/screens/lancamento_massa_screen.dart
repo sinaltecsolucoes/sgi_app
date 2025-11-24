@@ -156,10 +156,24 @@ class _LancamentoMassaScreenState extends State<LancamentoMassaScreen> {
           double.tryParse(m.quantidadeController.text.replaceAll(',', '.')) ??
           0;
       if (qtd > 0) {
-        lancamentos.add({
+        /* lancamentos.add({
           'funcionario_id': m.id,
           'acao_id': _acaoSelecionada!['id'],
           'produto_id': _produtoSelecionado!['id'],
+          'quantidade': qtd,
+          if (_produtoUsaLote && _loteController.text.trim().isNotEmpty)
+            'lote': _loteController.text.trim(),
+          if (_horaInicio != null) 'hora_inicio': _formatTime(_horaInicio!),
+          if (_horaFim != null) 'hora_fim': _formatTime(_horaFim!),
+        });*/
+
+        lancamentos.add({
+          'funcionario_id': m.id,
+          'funcionario_nome': m.nome,
+          'acao_id': _acaoSelecionada!['id'],
+          'acao': _acaoSelecionada!['nome'],
+          'produto_id': _produtoSelecionado!['id'],
+          'produto': _produtoSelecionado!['nome'],
           'quantidade': qtd,
           if (_produtoUsaLote && _loteController.text.trim().isNotEmpty)
             'lote': _loteController.text.trim(),
