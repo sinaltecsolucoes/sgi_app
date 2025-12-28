@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:dropdown_search/dropdown_search.dart';
+import 'package:uuid/uuid.dart';
 import '../providers/auth_provider.dart';
 import '../services/api_service.dart';
 
@@ -141,7 +142,7 @@ class _LancamentoMassaScreenState extends State<LancamentoMassaScreen> {
     }
   }
 
-  Future<void> _salvarLancamentoMassa() async {
+  /*  Future<void> _salvarLancamentoMassa() async {
     // Validações...
     if (_equipeSelecionada == null ||
         _acaoSelecionada == null ||
@@ -156,17 +157,6 @@ class _LancamentoMassaScreenState extends State<LancamentoMassaScreen> {
           double.tryParse(m.quantidadeController.text.replaceAll(',', '.')) ??
           0;
       if (qtd > 0) {
-        /* lancamentos.add({
-          'funcionario_id': m.id,
-          'acao_id': _acaoSelecionada!['id'],
-          'produto_id': _produtoSelecionado!['id'],
-          'quantidade': qtd,
-          if (_produtoUsaLote && _loteController.text.trim().isNotEmpty)
-            'lote': _loteController.text.trim(),
-          if (_horaInicio != null) 'hora_inicio': _formatTime(_horaInicio!),
-          if (_horaFim != null) 'hora_fim': _formatTime(_horaFim!),
-        });*/
-
         lancamentos.add({
           'funcionario_id': m.id,
           'funcionario_nome': m.nome,
@@ -211,6 +201,98 @@ class _LancamentoMassaScreenState extends State<LancamentoMassaScreen> {
           ? 'Erro no servidor. Salvo offline.'
           : 'Sem internet. Salvo offline e será sincronizado.',
     );
+  }
+*/
+
+  Future<void> _salvarLancamentoMassa() async {
+    // 1. BLOQUEIO DE INTERFACE: Impede cliques duplos imediatamente
+    setState(() => _isLoading = true);
+
+    try {
+      // Validações básicas
+      if (_equipeSelecionada == null ||
+          _acaoSelecionada == null ||
+          _produtoSelecionado == null) {
+        _showSnackBar('Preencha todos os campos obrigatórios', isError: true);
+        return;
+      }
+
+      // 2. GERAÇÃO DE ID ÚNICO: Identifica esta transação específica
+      final String loteId = const Uuid().v4();
+      final String dataHoraCriacao = DateTime.now().toIso8601String();
+
+      final lancamentos = <Map<String, dynamic>>[];
+      for (var m in _membros) {
+        final qtd =
+            double.tryParse(m.quantidadeController.text.replaceAll(',', '.')) ??
+            0;
+        if (qtd > 0) {
+          lancamentos.add({
+            'uuid_transacao':
+                loteId, // ID único para o backend checar duplicidade
+            'funcionario_id': m.id,
+            'funcionario_nome': m.nome,
+            'acao_id': _acaoSelecionada!['id'],
+            'acao': _acaoSelecionada!['nome'],
+            'produto_id': _produtoSelecionado!['id'],
+            'produto': _produtoSelecionado!['nome'],
+            'quantidade': qtd,
+            if (_produtoUsaLote && _loteController.text.trim().isNotEmpty)
+              'lote': _loteController.text.trim(),
+            if (_horaInicio != null) 'hora_inicio': _formatTime(_horaInicio!),
+            if (_horaFim != null) 'hora_fim': _formatTime(_horaFim!),
+          });
+        }
+      }
+
+      if (lancamentos.isEmpty) {
+        _showSnackBar('Informe pelo menos uma produção', isError: true);
+        return;
+      }
+
+      // Estrutura completa para salvar localmente ou enviar
+      final dadosParaEnvio = {
+        'lote_id': loteId,
+        'data_criacao': dataHoraCriacao,
+        'equipe_id': _equipeSelecionada!['id'],
+        'lancamentos': lancamentos,
+        'tentativas': 0,
+      };
+
+      final online = await _isOnline();
+
+      if (online) {
+        // Tentativa de envio ao servidor
+        final res = await _apiService.salvarLancamentoMassa(lancamentos);
+
+        if (res['success'] == true) {
+          if (!mounted) return;
+          _showSnackBar('Lançamento enviado com sucesso!');
+          Navigator.pop(
+            context,
+            true,
+          ); // Retorna true para atualizar telas anteriores
+          return;
+        }
+      }
+
+      // 3. FALLBACK: Se estiver offline OU se o servidor falhar
+      await _salvarLocalmente(dadosParaEnvio);
+
+      if (!mounted) return;
+      _showSnackBar(
+        online
+            ? 'Erro no servidor. Salvo para sincronização posterior.'
+            : 'Sem internet. Salvo offline.',
+        isError: !online,
+      );
+      Navigator.pop(context, true);
+    } catch (e) {
+      _showSnackBar('Erro inesperado: $e', isError: true);
+    } finally {
+      // 4. LIBERAÇÃO DA INTERFACE: Garante que o loading pare mesmo em caso de erro
+      if (mounted) setState(() => _isLoading = false);
+    }
   }
 
   String _formatTime(TimeOfDay t) =>

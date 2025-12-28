@@ -37,7 +37,7 @@ class _LancamentosPendentesScreenState
     });
   }
 
-  Future<void> _enviarTodos() async {
+  /*  Future<void> _enviarTodos() async {
     setState(() => _sincronizando = true);
     final prefs = await SharedPreferences.getInstance();
     final lista = prefs.getStringList('lancamentos_pendentes') ?? [];
@@ -74,6 +74,79 @@ class _LancamentosPendentesScreenState
     );
 
     Navigator.pop(context, true);
+  }
+
+*/
+
+  Future<void> _enviarTodos() async {
+    setState(() => _sincronizando = true);
+
+    final prefs = await SharedPreferences.getInstance();
+    final lista = prefs.getStringList('lancamentos_pendentes') ?? [];
+
+    List<String> falhas = [];
+    int sucessos = 0;
+
+    for (String itemJson in lista) {
+      final Map<String, dynamic> dados = jsonDecode(itemJson);
+
+      // Recupera o ID único que geramos no momento do salvamento
+      // final String? loteId = dados['lote_id'];
+
+      try {
+        // Enviamos os lançamentos.
+        // DICA: Se o seu backend for ajustado, envie o loteId junto no mapa
+        final res = await _apiService.salvarLancamentoMassa(
+          List<Map<String, dynamic>>.from(dados['lancamentos']),
+        );
+
+        if (res['success'] == true) {
+          sucessos++;
+          // Se o servidor respondeu sucesso, esse UUID foi "baixado"
+        } else {
+          // Se o servidor deu erro (ex: 500), mantemos na lista de falhas
+          dados['motivo_falha'] = res['message'] ?? 'Erro no servidor';
+          falhas.add(jsonEncode(dados));
+        }
+      } catch (e) {
+        dados['motivo_falha'] = 'Erro de conexão: $e';
+        falhas.add(jsonEncode(dados));
+      }
+    }
+
+    // Atualiza o SharedPreferences apenas com o que realmente falhou
+    await prefs.setStringList('lancamentos_pendentes', falhas);
+
+    if (mounted) {
+      setState(() {
+        _sincronizando = false;
+        _pendentes = falhas
+            .map((e) => jsonDecode(e) as Map<String, dynamic>)
+            .toList();
+      });
+
+      _showSnackBar(
+        sucessos > 0
+            ? '$sucessos lotes enviados com sucesso!'
+            : 'Não foi possível sincronizar.',
+        isError: sucessos == 0,
+      );
+
+      if (falhas.isEmpty) {
+        Navigator.pop(context);
+      }
+    }
+  }
+
+  void _showSnackBar(String message, {bool isError = false}) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: isError ? Colors.red : Colors.green,
+        duration: const Duration(seconds: 3),
+      ),
+    );
   }
 
   Future<void> _excluir(int index) async {

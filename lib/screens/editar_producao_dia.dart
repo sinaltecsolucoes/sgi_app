@@ -499,6 +499,9 @@ class _EditarProducaoScreenState extends State<EditarProducaoScreen> {
                                                               0,
                                                         ),
                                                       );
+
+                                                  if (!context.mounted) return;
+
                                                   if (t != null) {
                                                     l.horaInicio = t.format(
                                                       context,
@@ -548,6 +551,9 @@ class _EditarProducaoScreenState extends State<EditarProducaoScreen> {
                                                               0,
                                                         ),
                                                       );
+
+                                                  if (!context.mounted) return;
+
                                                   if (t != null) {
                                                     l.horaFim = t.format(
                                                       context,
