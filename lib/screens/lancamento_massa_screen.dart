@@ -142,68 +142,6 @@ class _LancamentoMassaScreenState extends State<LancamentoMassaScreen> {
     }
   }
 
-  /*  Future<void> _salvarLancamentoMassa() async {
-    // Validações...
-    if (_equipeSelecionada == null ||
-        _acaoSelecionada == null ||
-        _produtoSelecionado == null) {
-      _showSnackBar('Preencha todos os campos obrigatórios', isError: true);
-      return;
-    }
-
-    final lancamentos = <Map<String, dynamic>>[];
-    for (var m in _membros) {
-      final qtd =
-          double.tryParse(m.quantidadeController.text.replaceAll(',', '.')) ??
-          0;
-      if (qtd > 0) {
-        lancamentos.add({
-          'funcionario_id': m.id,
-          'funcionario_nome': m.nome,
-          'acao_id': _acaoSelecionada!['id'],
-          'acao': _acaoSelecionada!['nome'],
-          'produto_id': _produtoSelecionado!['id'],
-          'produto': _produtoSelecionado!['nome'],
-          'quantidade': qtd,
-          if (_produtoUsaLote && _loteController.text.trim().isNotEmpty)
-            'lote': _loteController.text.trim(),
-          if (_horaInicio != null) 'hora_inicio': _formatTime(_horaInicio!),
-          if (_horaFim != null) 'hora_fim': _formatTime(_horaFim!),
-        });
-      }
-    }
-
-    if (lancamentos.isEmpty) {
-      _showSnackBar('Informe pelo menos uma produção', isError: true);
-      return;
-    }
-
-    final dados = {
-      'equipe_id': _equipeSelecionada!['id'],
-      'lancamentos': lancamentos,
-    };
-
-    final online = await _isOnline();
-    if (online) {
-      final res = await _apiService.salvarLancamentoMassa(lancamentos);
-      if (res['success'] == true) {
-        if (!mounted) return;
-        _showSnackBar('Lançamento salvo com sucesso!');
-        Navigator.pop(context);
-        return;
-      }
-    }
-
-    await _salvarLocalmente(dados);
-    if (!mounted) return;
-    _showSnackBar(
-      online
-          ? 'Erro no servidor. Salvo offline.'
-          : 'Sem internet. Salvo offline e será sincronizado.',
-    );
-  }
-*/
-
   Future<void> _salvarLancamentoMassa() async {
     // 1. BLOQUEIO DE INTERFACE: Impede cliques duplos imediatamente
     setState(() => _isLoading = true);
@@ -220,16 +158,19 @@ class _LancamentoMassaScreenState extends State<LancamentoMassaScreen> {
       // 2. GERAÇÃO DE ID ÚNICO: Identifica esta transação específica
       final String loteId = const Uuid().v4();
       final String dataHoraCriacao = DateTime.now().toIso8601String();
-
+      
       final lancamentos = <Map<String, dynamic>>[];
+
       for (var m in _membros) {
         final qtd =
             double.tryParse(m.quantidadeController.text.replaceAll(',', '.')) ??
             0;
+
         if (qtd > 0) {
           lancamentos.add({
-            'uuid_transacao':
-                loteId, // ID único para o backend checar duplicidade
+            'uuid': const Uuid().v4(),
+            //'uuid_transacao':
+             //   loteId, // ID único para o backend checar duplicidade
             'funcionario_id': m.id,
             'funcionario_nome': m.nome,
             'acao_id': _acaoSelecionada!['id'],
